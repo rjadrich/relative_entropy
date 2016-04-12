@@ -1,0 +1,37 @@
+; Topology file for simulation of WCA ternery system
+;
+
+;;;------------------------------------------------------------
+;;; OPLS-AA force field settings and parameters
+
+[ defaults ]
+; OPLS-AA force field
+; nbfunc	comb-rule	gen-pairs	fudgeLJ	fudgeQQ
+    1		  1		  yes		 0.5	 0.5
+
+[ atomtypes ]
+; full atom descriptions are available in ffoplsaa.atp
+; name  bond_type    mass    charge   ptype   sigma    epsilon
+;                    (u)     (e)              (nm)     (kJ/mol)
+    A      A           30.00    0        A       1     1
+
+[ molecule_type ]
+    A	   1
+
+[ atoms ]
+;   nr   type  resnr residue  atom   cgnr     charge       mass
+    1	   A      1     A       A     1        0
+
+;;;
+;;;------------------------------------------------------------
+
+
+
+[ system ]
+; Name
+WCA
+
+[ molecules ]
+; Compound        #mols
+A		  8000
+

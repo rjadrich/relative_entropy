@@ -1,0 +1,14 @@
+#!/bin/bash
+#$ -V
+#$ -cwd
+#$ -N n32A8R8
+#$ -pe 12way 12
+#$ -q normal
+#$ -o $JOB_NAME.o$JOB_ID
+#$ -l h_rt=8:00:00
+#$ -M rjadrich@utexas.edu
+#$ -m be
+
+module load gromacs/4.5.3
+export PATH=$PATH:/home1/03428/rbj428/votca/bin
+./runscript.sh > output
