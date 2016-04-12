@@ -17,8 +17,6 @@
 
 using namespace std;
 
-const int rdf_gromacs_skip = 0; //number of lines to skip in gromacs RDF file (seems to be 13 for default RDF settings)
-
 //CLASSES FOR COMPACT DESCRIPTIONS OF COMMONLY NEEDED DATA
 class gromacs_settings_class
 {
@@ -32,7 +30,6 @@ public:
 	double gradient_scale; //amplitude to scale back the step in the direction of the gradient by to stabilize iterative scheme
 	double momentum_scale; //amplitude to scale back the momentum part of the update by (set to zero for normal gradient descent)
 	double md_cutoff_magnitude; //magnitude where the potential can be truncated and set to zero
-	double gr_cutoff_magnitude; //magnitude determining where potential derivatives with respect to parameters is small
 	double buffer_size; //amount to buffer beyond the cutoff to allow for infrequent neighbor table updates
 	int rlist; //line number for rlist
 	int rcoulomb; //line number for rcoulomb
@@ -391,7 +388,6 @@ void post_process_last_step(int last_step)
 		!(gromacs_settings_filestream >> gromacs_settings.momentum_scale) ||
 		!(gromacs_settings_filestream >> gromacs_settings.kB_T) ||
 		!(gromacs_settings_filestream >> gromacs_settings.md_cutoff_magnitude) ||
-		!(gromacs_settings_filestream >> gromacs_settings.gr_cutoff_magnitude) ||
 		!(gromacs_settings_filestream >> gromacs_settings.buffer_size) ||
 		!(gromacs_settings_filestream >> gromacs_settings.rlist) ||
 		!(gromacs_settings_filestream >> gromacs_settings.rcoulomb) ||
@@ -742,7 +738,7 @@ array_pair_and_num_elements fetch_gr_data(string last_step_directory, gromacs_se
 	gr_tgt_filestream.open(rdf_tgt_file_address.c_str());
 
 	//DETERMINE THE TOTAL NUMBER OF POINTS TO READ IN FOR ALLOCATING ARRAYS
-	num_lines_gr = 0; /*-rdf_gromacs_skip*/; //gromacs rdf defaults to having 13 lines of header text (this is set here by a constant global integer)
+	num_lines_gr = 0; 
 	while (getline(gr_filestream, line))
 	{
 		++num_lines_gr;
@@ -776,10 +772,6 @@ array_pair_and_num_elements fetch_gr_data(string last_step_directory, gromacs_se
 	r_tgt = (double*)malloc(sizeof(double) * num_lines_gr);
 
 	//READ IN RDF DATA AND STORE IN ARRAYS
-	for (i = 0; i < rdf_gromacs_skip; i++) //skip dummy lines in gromacs generated file
-	{
-		getline(gr_filestream, line);
-	}
 	for (i = 0; i < num_lines_gr; i++) //now fill in with actual gr data
 	{
 		gr_filestream >> scientific >> *(r+i) >> *(gr + i) >> garbage;
@@ -1258,39 +1250,6 @@ array_pair_and_num_elements optimize_ideal_cluster_potential(int last_step, arra
 	}
 
 
-
-	/////////////////////////////////////////////////////////////////////////////////////////////
-	///////////////////////////////////FIND THE GR CUTOFF////////////////////////////////////////
-	/////////////////////////////////////////////////////////////////////////////////////////////
-
-	//NOTE: THIS IS NOT CURRENTLY BEING USED BUT I HAVE KEPT IT AS A OPTION IN CASE OF FUTURE DEVELOPMENTS
-	
-	//FIND GR CUTOFF BASED ON UPDATED (OR NOT) PARAMETERS USING KBT NORMALIZATION
-	//NOTE!!! THIS USES NUM_TABLE_ENTRIES TO ENSURE IT GOES OUT FAR ENOUGH
-	for (i = num_table_entries - 1; i > 0; i--)
-	{
-		r_I = (double)i*gromacs_settings.delta_r;
-
-		dude1_I = -(1.0 / (exp(pow(-((2.0 + a1 - 2.0 * r_I) / a1), n1))*gromacs_settings.kB_T));
-		duda1_I = (2.0 * ((e2*(double)n2*pow(-((2.0 + 2.0 * a1 + a2 - 2.0 * r_I) / a2), -1 + n2)) / (a2*exp(pow(-((2.0 + 2.0 * a1 + a2 - 2.0 * r_I) / a2), n2))) -
-			(e1*(double)n1*pow(-((2.0 + a1 - 2.0 * r_I) / a1), -1 + n1)*(-1.0 + r_I)) /
-			(pow(a1, 2)*exp(pow(-((2.0 + a1 - 2.0 * r_I) / a1), n1))))) / gromacs_settings.kB_T;
-		dude2_I = 1.0 / (exp(pow(-((2.0 + 2.0 * a1 + a2 - 2.0 * r_I) / a2), n2))*gromacs_settings.kB_T);
-		duda2_I = (-2.0 * e2*(double)n2*pow(-((2.0 + 2.0 * a1 + a2 - 2.0 * r_I) / a2), -1 + n2)*(1.0 + a1 - r_I)) /
-			(pow(a2, 2)*exp(pow(-((2.0 + 2.0 * a1 + a2 - 2.0 * r_I) / a2), n2))*gromacs_settings.kB_T);
-		
-		if (fabs(dude1_I) > gromacs_settings.gr_cutoff_magnitude ||
-			fabs(duda1_I) > gromacs_settings.gr_cutoff_magnitude ||
-			fabs(dude2_I) > gromacs_settings.gr_cutoff_magnitude ||
-			fabs(duda2_I) > gromacs_settings.gr_cutoff_magnitude)
-		{
-			*(gr_cutoff_pointer) = r_I;
-			break;
-		}
-	}
-
-
-
 	/////////////////////////////////////////////////////////////////////////////////////////////
 	///////////////////////////////TABLE AND MD CUTOFF STUFF/////////////////////////////////////
 	/////////////////////////////////////////////////////////////////////////////////////////////
@@ -1537,40 +1496,6 @@ array_pair_and_num_elements optimize_ramp_salr_cluster_potential(int last_step, 
 		e2 = e2 + /*grad*/ step_e2; *(potential_parameters + 2) = e2;
 		a2 = a2 + /*grad*/ step_a2; *(potential_parameters + 3) = a2;
 	}
-
-
-	
-
-	/////////////////////////////////////////////////////////////////////////////////////////////
-	///////////////////////////////////FIND THE GR CUTOFF////////////////////////////////////////
-	/////////////////////////////////////////////////////////////////////////////////////////////
-
-	//NOTE: THIS IS NOT CURRENTLY BEING USED BUT I HAVE KEPT IT AS A OPTION IN CASE OF FUTURE DEVELOPMENTS
-
-	//FIND GR CUTOFF BASED ON UPDATED (OR NOT) PARAMETERS USING KBT NORMALIZATION
-	//NOTE!!! THIS USES NUM_TABLE_ENTRIES TO ENSURE IT GOES OUT FAR ENOUGH
-	for (i = num_table_entries - 1; i > 0; i--)
-	{
-		r_I = (double)i*gromacs_settings.delta_r;
-
-		dude1_I = -(1.0 / (exp(pow(-((2.0 + a1 - 2.0 * r_I) / a1), n1))*gromacs_settings.kB_T));
-		duda1_I = (2.0 * ((e2*(double)n2*pow(-((2.0 + 2.0 * a1 + a2 - 2.0 * r_I) / a2), -1 + n2)) / (a2*exp(pow(-((2.0 + 2.0 * a1 + a2 - 2.0 * r_I) / a2), n2))) -
-			(e1*(double)n1*pow(-((2.0 + a1 - 2.0 * r_I) / a1), -1 + n1)*(-1.0 + r_I)) /
-			(pow(a1, 2)*exp(pow(-((2.0 + a1 - 2.0 * r_I) / a1), n1))))) / gromacs_settings.kB_T;
-		dude2_I = 1.0 / (exp(pow(-((2.0 + 2.0 * a1 + a2 - 2.0 * r_I) / a2), n2))*gromacs_settings.kB_T);
-		duda2_I = (-2.0 * e2*(double)n2*pow(-((2.0 + 2.0 * a1 + a2 - 2.0 * r_I) / a2), -1 + n2)*(1.0 + a1 - r_I)) /
-			(pow(a2, 2)*exp(pow(-((2.0 + 2.0 * a1 + a2 - 2.0 * r_I) / a2), n2))*gromacs_settings.kB_T);
-
-		if (fabs(dude1_I) > gromacs_settings.gr_cutoff_magnitude ||
-			fabs(duda1_I) > gromacs_settings.gr_cutoff_magnitude ||
-			fabs(dude2_I) > gromacs_settings.gr_cutoff_magnitude ||
-			fabs(duda2_I) > gromacs_settings.gr_cutoff_magnitude)
-		{
-			*(gr_cutoff_pointer) = r_I;
-			break;
-		}
-	}
-
 
 
 	/////////////////////////////////////////////////////////////////////////////////////////////
