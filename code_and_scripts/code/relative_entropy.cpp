@@ -39,30 +39,6 @@ public:
 	int rvdw; //line number for rvdw
 };
 
-class ideal_cluster_potential_class
-{
-public:
-	//OPTIMIZED PARAMETERS
-	double epsilon_I; //attraction amplitude
-	double alpha_I; //attraction range
-	double epsilon_II; //repulsive amplitude
-	double alpha_II; //repulsive range
-	//USER FIXED PARAMETERS
-	double power_I; //attractive power in exponential
-	double power_II; //repulsive power in exponential
-};
-
-class ramp_salr_potential
-{
-public:
-	double epsilon_I; //attraction amplitude
-	double alpha_I; //attraction range - NOT OPTIMIZED!
-	double epsilon_II; //repulsive amplitude
-	double alpha_II; //repulsive range
-	double power_I; //attractive power in exponential - NOT OPTIMIZED!
-	double power_II; //repulsive power in exponential - NOT OPTIMIZED!
-};
-
 class array_pair_and_num_elements
 {
 public:
@@ -322,42 +298,9 @@ void create_next_step(int last_step)
 
 void copy_file(string initialFilePath, string outputFilePath)  //COPY ANY FILES THAT I NEED TO MOVE FOR VARIOUS ITERATIONS
 {
-	ifstream initialFile(initialFilePath.c_str(), ios::in | ios::binary);
-	ofstream outputFile(outputFilePath.c_str(), ios::out | ios::binary);
-	string line;
-
-	/*//defines the size of the buffer
-	initialFile.seekg(0, ios::end);
-	long fileSize = initialFile.tellg();
-	//Requests the buffer of the predefined size
-
-
-	//As long as both the input and output files are open...
-	if (initialFile.is_open() && outputFile.is_open())
-	{
-		short * buffer = new short[fileSize / 2];
-		//Determine the file's size
-		//Then starts from the beginning
-		initialFile.seekg(0, ios::beg);
-		//Then read enough of the file to fill the buffer
-		initialFile.read((char*)buffer, fileSize);
-		//And then write out all that was read
-		outputFile.write((char*)buffer, fileSize);
-		delete[] buffer;
-	}
-	//If there were any problems with the copying process, let the user know
-	else if (!outputFile.is_open())
-	{
-		log_filestream << "couldn't open " << outputFilePath << " for copying -> killing!" << endl;
-		log_filestream << "///////////////////END RE CODE/////////////////////" << endl << endl;
-		exit(EXIT_FAILURE);
-	}
-	else if (!initialFile.is_open())
-	{
-		log_filestream << "couldn't open " << initialFilePath << " for copying -> killing!" << endl;
-		log_filestream << "///////////////////END RE CODE/////////////////////" << endl << endl;
-		exit(EXIT_FAILURE);
-	}*/
+	ifstream initialFile(initialFilePath.c_str(), ios::in | ios::binary); //input stream for reading
+	ofstream outputFile(outputFilePath.c_str(), ios::out | ios::binary); //output stream for writing
+	string line; //string to pipe file data into
 
 	while (getline(initialFile, line))
 	{
@@ -368,7 +311,6 @@ void copy_file(string initialFilePath, string outputFilePath)  //COPY ANY FILES 
 			exit(EXIT_FAILURE);
 		}
 	}
-
 
 	initialFile.close();
 	outputFile.close();
