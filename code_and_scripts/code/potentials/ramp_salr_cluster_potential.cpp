@@ -1,5 +1,6 @@
 ///////////////////////////////////////////////////////
 #include "../dtypes.h" //need this in every potential file
+#include "potentials.h"//need this in every potential file
 ///////////////////////////////////////////////////////
 
 //INCLUDES FOR THIS POTENTIAL
@@ -7,7 +8,7 @@
 #include <stdlib.h> //for malloc
 
 //ACTUAL POTENTIAL OPTIMIZER FUNCTION
-array_pair_and_num_elements optimize_ramp_salr_cluster_potential(int last_step, array_pair_and_num_elements gr_data,
+array_pair_and_num_elements potential_data::optimize_ramp_salr_cluster_potential(int last_step, array_pair_and_num_elements gr_data,
 	double *potential_parameters, double *d_potential_parameters, gromacs_settings_class gromacs_settings,
 	double *md_cutoff_pointer, double *gr_cutoff_pointer, double *unscaled_gradient_pointer, double *gr_convergence_pointer)
 {
