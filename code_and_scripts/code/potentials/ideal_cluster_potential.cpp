@@ -10,7 +10,7 @@
 //ACTUAL POTENTIAL OPTIMIZER FUNCTION
 array_pair_and_num_elements potential_data::optimize_ideal_cluster_potential(int last_step, array_pair_and_num_elements gr_data,
 	double *potential_parameters, double *d_potential_parameters, gromacs_settings_class gromacs_settings,
-	double *md_cutoff_pointer, double *gr_cutoff_pointer, double *unscaled_gradient_pointer, double *gr_convergence_pointer)
+	double *md_cutoff_pointer, double *unscaled_gradient_pointer, double *gr_convergence_pointer)
 {
 	//OPTIMIZATION PARAMETERS
 	double e1 = *(potential_parameters + 0), a1 = *(potential_parameters + 1);

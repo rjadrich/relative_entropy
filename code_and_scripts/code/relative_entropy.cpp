@@ -338,7 +338,7 @@ void post_process_last_step(int last_step)
 	array_pair_and_num_elements gr_data; //brings back the address to two gr arrays and the number of elements
 
 	//CUTOFFS TO BE DETERMINED BY OPTIMIZATION STEP
-	double md_cutoff, gr_cutoff; //md and rdf calculation cutoffs
+	double md_cutoff; //md calculation cutoff
 	double unscaled_gradient; //asesses the convergence of the optimization scheme
 	double gr_convergence; //asesses the convergence of the optimization scheme but with gr
 
@@ -373,7 +373,6 @@ void post_process_last_step(int last_step)
 		gr_data = fetch_gr_data(last_step_directory, gromacs_settings);
 	}
 
-
 	//READ IN THE FIRST LINE OF PARAMETERS FILE TO ESTABLISH THE POTENTIAL TYPE (AND THUS # OF PARAMETERS)
 	if (!(potential_parameters_filestream >> potential_type))
 	{
@@ -403,65 +402,11 @@ void post_process_last_step(int last_step)
 	{
 		d_potential_parameters_filestream >> *(d_potential_parameters + i);
 	}
-
+	
+	//CALCULATE THE NEW POTENTIAL AND WRITE TO A TABLE FILE
 	table_data = pot.optimize_potential(last_step, gr_data,
-		potential_parameters, d_potential_parameters, gromacs_settings, &md_cutoff, &gr_cutoff, &unscaled_gradient, &gr_convergence);
-
-
-
-
-
-	//ALLOCATE APPROPRIATE ARRAY SIZE, READ IN POTENTIAL PARAMETERS AND FINALLY OPTIMIZE USING POTENTIAL SPECIFIC FUNCTIONS
-	//THESE FUNCTIONS ALSO GENERATE THE GROMACS TABLE ARRAYS
-	/*if (potential_type == 0) //ideal cluster potential with two energy and range specific parameters
-	{
-		num_parameters = 6;
-		num_d_parameters = 4;
-		potential_parameters = (double*)malloc(sizeof(double) * num_parameters);
-		d_potential_parameters = (double*)malloc(sizeof(double) * num_d_parameters);
-
-		for (i = 0; i < num_parameters; i++)
-		{
-			potential_parameters_filestream >> *(potential_parameters + i);
-		}
-		for (i = 0; i < num_d_parameters; i++)
-		{
-			d_potential_parameters_filestream >> *(d_potential_parameters + i);
-		}
-
-		table_data = optimize_ideal_cluster_potential(last_step, gr_data,
-			potential_parameters, d_potential_parameters, gromacs_settings, &md_cutoff, &gr_cutoff, &unscaled_gradient, &gr_convergence);
-	}
-	else if (potential_type == 1)
-	{
-		num_parameters = 6;
-		num_d_parameters = 4;
-		potential_parameters = (double*)malloc(sizeof(double) * num_parameters);
-		d_potential_parameters = (double*)malloc(sizeof(double) * num_d_parameters);
-
-		for (i = 0; i < num_parameters; i++)
-		{
-			potential_parameters_filestream >> *(potential_parameters + i);
-		}
-		for (i = 0; i < num_d_parameters; i++)
-		{
-			d_potential_parameters_filestream >> *(d_potential_parameters + i);
-		}
-
-		table_data = optimize_ramp_salr_cluster_potential(last_step, gr_data,
-			potential_parameters, d_potential_parameters, gromacs_settings, &md_cutoff, &gr_cutoff, &unscaled_gradient, &gr_convergence);
-	}
-	else
-	{
-		log_filestream << "invalid potential type -> killing!" << endl;
-		log_filestream << "///////////////////END RE CODE/////////////////////" << endl << endl;
-		exit(EXIT_FAILURE);
-	}*/ 
-
-
-
-
-
+		potential_parameters, d_potential_parameters, gromacs_settings, &md_cutoff, &unscaled_gradient, &gr_convergence);
+	
 	//APPLY THE BUFFER
 	md_cutoff = md_cutoff + gromacs_settings.buffer_size;
 
@@ -491,7 +436,8 @@ void post_process_last_step(int last_step)
 	create_post_process_done_file(last_step);
 
 	//DEALLOCATE ALL ARRAYS
-
+	delete[] potential_parameters;
+	delete[] d_potential_parameters;
 }
 
 void update_auxillary_script(int last_step)
