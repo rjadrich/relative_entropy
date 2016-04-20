@@ -312,7 +312,7 @@ array_pair_and_num_elements potential_data::optimize_crystal_potential(int last_
 	return table_data;
 }
 
-
+//NEED THIS SINCE THE MATH LIBRARY DOES NOT COME PRELOADED WITH A DEF
 double sech(double x)
 {
 	return 1.0 / cosh(x);

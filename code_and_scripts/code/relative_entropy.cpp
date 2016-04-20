@@ -949,13 +949,34 @@ void create_new_rdf_gromacs_script(int last_step, gromacs_settings_class gromacs
 	string file_address = "./step_" + convert_int_to_string(last_step) + "/rdf_gromacs_out.sh"; //contains string with new file directory
 	ofstream rdf_gromacs_script_filestream(file_address.c_str(), ios::out | ios::trunc); //for writing commands to be run by the rdf script
 
-	rdf_gromacs_script_filestream << "../multi_g_rdf" <<
-		/*" -N " << gromacs_settings.num_gr_calcs <<*/
+	//LOCATION OF THE SCRIPT
+	rdf_gromacs_script_filestream << "../multi_g_rdf";
+
+	//WRITE OUT THE NUMBER OF PARALLEL RDF CALCULATIONS TO PERFORM
+	if ((gromacs_settings.num_gr_calcs >= 1) && (gromacs_settings.num_gr_calcs < 10))
+	{
+		rdf_gromacs_script_filestream << " -" << gromacs_settings.num_gr_calcs;
+	}
+	else if ((gromacs_settings.num_gr_calcs >= 10) && (gromacs_settings.num_gr_calcs < 100))
+	{
+		rdf_gromacs_script_filestream << " --" << gromacs_settings.num_gr_calcs;
+	}
+	else
+	{
+		log_filestream << "invalid number of parallel rdf calculations -> killing!" << endl;
+		log_filestream << "///////////////////END RE CODE/////////////////////" << endl << endl;
+		exit(EXIT_FAILURE);
+	}
+
+	//OTHER VARIABLES FOR RDF CALCULATION
+	rdf_gromacs_script_filestream << 
 		" -b " << gromacs_settings.equil_time <<
 		" -e " << gromacs_settings.final_time <<
 		" --" <<
 		" -bin " << gromacs_settings.delta_r <<
 		" << 'EOF' " << endl;
+
+	//COMMANDS TO PIPE IN SOME NEEDED DETAILS FOR THE RDF CALC
 	rdf_gromacs_script_filestream << "2" << endl;
 	rdf_gromacs_script_filestream << "2" << endl;
 	rdf_gromacs_script_filestream << "'EOF'" << endl;
