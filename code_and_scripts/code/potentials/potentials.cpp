@@ -20,10 +20,16 @@ bool potential_data::set_potential(int potential_type_input)
 		num_d_parameters = 4;
 		return true;
 	}
-	if (potential_type == 1) //ramp_salr_cluster_potential
+	else if (potential_type == 1) //ramp_salr_cluster_potential
 	{
 		num_parameters = 6;
 		num_d_parameters = 4;
+		return true;
+	}
+	else if (potential_type == 2) //crystal_potential
+	{
+		num_parameters = 8;
+		num_d_parameters = 8;
 		return true;
 	}
 	else
@@ -63,9 +69,15 @@ array_pair_and_num_elements potential_data::optimize_potential(int last_step, ar
 			potential_parameters, d_potential_parameters, gromacs_settings,
 			md_cutoff_pointer, unscaled_gradient_pointer, gr_convergence_pointer);
 	}
-	if (potential_type == 1) //ramp_salr_cluster_potential
+	else if (potential_type == 1) //ramp_salr_cluster_potential
 	{
 		return optimize_ramp_salr_cluster_potential(last_step, gr_data,
+			potential_parameters, d_potential_parameters, gromacs_settings,
+			md_cutoff_pointer, unscaled_gradient_pointer, gr_convergence_pointer);
+	}
+	else if (potential_type == 2) //ramp_salr_cluster_potential
+	{
+		return optimize_crystal_potential(last_step, gr_data,
 			potential_parameters, d_potential_parameters, gromacs_settings,
 			md_cutoff_pointer, unscaled_gradient_pointer, gr_convergence_pointer);
 	}
