@@ -575,7 +575,7 @@ void update_auxillary_script(int last_step)
 	auxillary_script_filestream.close();
 }
 
-void new_step_grompp_files_script(int last_step)
+void new_step_grompp_files_script(int last_step) //DELETE
 {
 	string file_address = "./step_" + convert_int_to_string(last_step + 1) + "/grompp_files.sh"; //contains string with new file directory
 	ofstream grompp_files_script_filestream(file_address.c_str(), ios::out | ios::trunc); //for writing commands to be run by the grompp script
@@ -589,7 +589,7 @@ void new_step_grompp_files_script(int last_step)
 	grompp_files_script_filestream.close();
 }
 
-void new_step_mdrun_gromacs_script(int last_step)
+void new_step_mdrun_gromacs_script(int last_step) //DELETE
 {
 	string file_address = "./step_" + convert_int_to_string(last_step + 1) + "/mdrun_gromacs.sh"; //contains string with new file directory
 	ofstream mdrun_gromacs_script_filestream(file_address.c_str(), ios::out | ios::trunc); //for writing commands to be run by the mdrun script
@@ -603,7 +603,7 @@ void new_step_mdrun_gromacs_script(int last_step)
 	mdrun_gromacs_script_filestream.close();
 }
 
-void new_step_rdf_gromacs_script(int last_step)
+void new_step_rdf_gromacs_script(int last_step) //DELETE
 {
 	string file_address = "./step_" + convert_int_to_string(last_step + 1) + "/rdf_gromacs.sh"; //contains string with new file directory
 	ofstream rdf_gromacs_script_filestream(file_address.c_str(), ios::out | ios::trunc); //for writing commands to be run by the rdf script
@@ -620,7 +620,7 @@ void new_step_rdf_gromacs_script(int last_step)
 	rdf_gromacs_script_filestream.close();
 }
 
-void new_step_gromacs_scripts(int last_step)
+void new_step_gromacs_scripts(int last_step) //DELETE
 {
 	new_step_grompp_files_script(last_step);
 	new_step_mdrun_gromacs_script(last_step);
@@ -921,7 +921,7 @@ void create_new_grompp_files_script(int last_step)
 	string file_address = "./step_" + convert_int_to_string(last_step) + "/grompp_files_out.sh"; //contains string with new file directory
 	ofstream grompp_files_script_filestream(file_address.c_str(), ios::out | ios::trunc); //for writing commands to be run by the grompp script
 
-	grompp_files_script_filestream << "grompp -f grompp.mdp -po md_out.mdp -c conf.gro -n index.ndx -p topol.top -o topol.tpr" << endl;
+	grompp_files_script_filestream << "gmx grompp -f grompp.mdp -po md_out.mdp -c conf.gro -n index.ndx -p topol.top -o topol.tpr" << endl;
 	grompp_files_script_filestream << endl;
 	grompp_files_script_filestream << "grompp_exit=$?" << endl;
 	grompp_files_script_filestream << endl;
@@ -935,7 +935,7 @@ void create_new_mdrun_gromacs_script(int last_step)
 	string file_address = "./step_" + convert_int_to_string(last_step) + "/mdrun_gromacs_out.sh"; //contains string with new file directory
 	ofstream mdrun_gromacs_script_filestream(file_address.c_str(), ios::out | ios::trunc); //for writing commands to be run by the mdrun script
 
-	mdrun_gromacs_script_filestream << "mdrun -s topol.tpr -c conf_out.gro -o traj.trr -x traj.xtc" << endl;
+	mdrun_gromacs_script_filestream << "gmx mdrun -s topol.tpr -c conf_out.gro -o traj.trr -x traj.xtc" << endl;
 	mdrun_gromacs_script_filestream << endl;
 	mdrun_gromacs_script_filestream << "mdrun_exit=$?" << endl;
 	mdrun_gromacs_script_filestream << endl;
