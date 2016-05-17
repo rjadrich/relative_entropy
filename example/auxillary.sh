@@ -1,7 +1,7 @@
-cd ./step_485
+cd ./step_500
 
 echo "//////////////////BEGIN AUX SCRIPT/////////////////" >> ../log.txt
-echo "preparing simulation for step 485" >> ../log.txt
+echo "preparing simulation for step 500" >> ../log.txt
 
 ##############################################
 ################GROMMP SCRIPT#################

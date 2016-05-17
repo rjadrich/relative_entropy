@@ -1,1 +1,0 @@
-last step,unscaled gradient,gr convergence

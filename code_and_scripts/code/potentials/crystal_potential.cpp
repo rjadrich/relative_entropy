@@ -6,6 +6,10 @@
 //INCLUDES FOR THIS POTENTIAL
 #include <math.h> //for functions
 #include <stdlib.h> //for malloc
+#include <iostream>
+#include <fstream>
+
+using namespace std;
 
 double sech(double x);
 
@@ -18,7 +22,7 @@ array_pair_and_num_elements potential_data::optimize_crystal_potential(int last_
 	double A = *(potential_parameters + 0); double n = *(potential_parameters + 1);
 	double L1 = *(potential_parameters + 2); double k1 = *(potential_parameters + 3); double d1 = *(potential_parameters + 4);
 	double L2 = *(potential_parameters + 5); double k2 = *(potential_parameters + 6); double d2 = *(potential_parameters + 7);
-	double rcut = *(potential_parameters + 8);
+	double rcut = *(potential_parameters + 8); /*double rcut_lower = *(potential_parameters + 9);*/
 	//NON_OPTIMIZED PARAMETERS SET BY USER
 			//none right now
 	//STORAGE POTENTIAL AND DERIVATIVE (ALL ARE IN UNITS OF KBT)
@@ -39,7 +43,7 @@ array_pair_and_num_elements potential_data::optimize_crystal_potential(int last_
 	double grad_A, grad_n;
 	double grad_L1, grad_k1, grad_d1;
 	double grad_L2, grad_k2, grad_d2;
-	double grad_rcut;
+	//double grad_rcut;
 		/////////////////////////////////////////////////////////////////
 	double grad_magnitude, inverse_grad_magnitude;
 	double r_I, r_II;
@@ -49,18 +53,27 @@ array_pair_and_num_elements potential_data::optimize_crystal_potential(int last_
 	double dudA_I, dudA_II, dudn_I, dudn_II;
 	double dudL1_I, dudL1_II, dudk1_I, dudk1_II, dudd1_I, dudd1_II;
 	double dudL2_I, dudL2_II, dudk2_I, dudk2_II, dudd2_I, dudd2_II;
-	double dudrcut_I, dudrcut_II;
+	//double dudrcut_I, dudrcut_II;
 	//GR CONVERGENCE
 	double gr_convergence;
 	//MOMENTUM
 	double step_A, step_n;
 	double step_L1, step_k1, step_d1;
 	double step_L2, step_k2, step_d2;
-	double step_rcut;
+	//double step_rcut;
 	//CONSTRAINED AMPLITUDE
 		//none right now
 	//SOME OTHER VARIABLES USED IN POTENTIAL
 	double P, Q, R;
+	//DELETE
+	//ofstream dudA_stream("./dudA.csv", ios::out | ios::trunc); //for writing commands to be run by the global script (for gromacs just g rdf)
+	//ofstream dudn_stream("./dudn.csv", ios::out | ios::trunc); //for writing commands to be run by the global script (for gromacs just g rdf)
+	//ofstream dudL1_stream("./dudL1.csv", ios::out | ios::trunc); //for writing commands to be run by the global script (for gromacs just g rdf)
+	//ofstream dudk1_stream("./dudk1.csv", ios::out | ios::trunc); //for writing commands to be run by the global script (for gromacs just g rdf)
+	//ofstream dudd1_stream("./dudd1.csv", ios::out | ios::trunc); //for writing commands to be run by the global script (for gromacs just g rdf)
+	//ofstream dudL2_stream("./dudL2.csv", ios::out | ios::trunc); //for writing commands to be run by the global script (for gromacs just g rdf)
+	//ofstream dudk2_stream("./dudk2.csv", ios::out | ios::trunc); //for writing commands to be run by the global script (for gromacs just g rdf)
+	//ofstream dudd2_stream("./dudd2.csv", ios::out | ios::trunc); //for writing commands to be run by the global script (for gromacs just g rdf)
 
 	/////////////////////////////////////////////////////////////////////////////////////////////
 	///////////////////////////////////UPDATING PARAMETERS///////////////////////////////////////
@@ -81,7 +94,7 @@ array_pair_and_num_elements potential_data::optimize_crystal_potential(int last_
 		grad_L2 = 0.0;
 		grad_k2 = 0.0;
 		grad_d2 = 0.0;
-		grad_rcut = 0.0;
+		//grad_rcut = 0.0;
 		gr_convergence = 0.0;
 		for (i = 0; i < num_lines_gr - 1; i++)
 		{
@@ -96,75 +109,105 @@ array_pair_and_num_elements potential_data::optimize_crystal_potential(int last_
 			gr_tgt_II = *(gr_data.array_2 + i + 1);
 
 			//first set of potential derivatives
-			dudA_I = -((1.0 + n)*(2.0 + n)) / (2.0*pow(rcut, n)) + n*(2.0 + n)*pow(rcut, -1.0 - n)*r_I - (n*(1.0 + n)*pow(rcut, -2.0 - n)*pow(r_I, 2.0)) / 2.0 + pow(r_I, -n);
-			dudn_I = (pow(rcut, -2.0 - n)*(A*pow(r_I, n)*((-rcut + r_I)*((3.0 + 2.0 * n)*rcut - (1.0 + 2.0 * n)*r_I) +
-				((1.0 + n)*(2.0 + n)*pow(rcut, 2.0) - 2.0 * n*(2.0 + n)*rcut*r_I + n*(1.0 + n)*pow(r_I, 2.0))*log(rcut)) - 2.0 * A*pow(rcut, 2.0 + n)*log(r_I))) / (2.0*pow(r_I, n));
-			dudL1_I = -tanh(k1*(d1 - rcut)) + k1*(rcut - r_I)*pow(sech(k1*(-d1 + rcut)), 2.0)*(-1.0 + k1*(rcut - r_I)*tanh(k1*(d1 - rcut))) - tanh(k1*(-d1 + r_I));
-			dudk1_I = (L1*(6.0 * pow(k1, 2.0)*(d1 - rcut)*pow(rcut - r_I, 2.0)*pow(sech(k1*(d1 - rcut)), 4.0) + 2.0 * (d1 - r_I)*pow(sech(k1*(-d1 + r_I)), 2.0) +
-				2.0 * pow(sech(k1*(d1 - rcut)), 2.0)*(-(d1*(1.0 + 2.0 * pow(k1, 2.0)*pow(rcut - r_I, 2.0))) + 2.0 * pow(k1, 2.0)*rcut*pow(rcut - r_I, 2.0) + r_I +
-				2.0 * k1*(d1 - r_I)*(rcut - r_I)*tanh(k1*(d1 - rcut))))) / 2.0;
-			dudd1_I = k1*L1*(-pow(sech(k1*(d1 - rcut)), 2.0) + pow(sech(k1*(-d1 + r_I)), 2.0) -
-				k1*(rcut - r_I)*pow(sech(k1*(-d1 + rcut)), 4.0)*(k1*(rcut - r_I)*(-2.0 + cosh(2.0 * k1*(-d1 + rcut))) + sinh(2.0 * k1*(-d1 + rcut))));
-			dudL2_I = -tanh(k2*(d2 - rcut)) + k2*(rcut - r_I)*pow(sech(k2*(-d2 + rcut)), 2.0)*(-1.0 + k2*(rcut - r_I)*tanh(k2*(d2 - rcut))) - tanh(k2*(-d2 + r_I));
-			dudk2_I = (L2*(6.0 * pow(k2, 2.0)*(d2 - rcut)*pow(rcut - r_I, 2.0)*pow(sech(k2*(d2 - rcut)), 4.0) + 2.0 * (d2 - r_I)*pow(sech(k2*(-d2 + r_I)), 2.0) +
-				2.0 * pow(sech(k2*(d2 - rcut)), 2.0)*(-(d2*(1.0 + 2.0 * pow(k2, 2.0)*pow(rcut - r_I, 2.0))) + 2.0 * pow(k2, 2.0)*rcut*pow(rcut - r_I, 2.0) + r_I +
-				2.0 * k2*(d2 - r_I)*(rcut - r_I)*tanh(k2*(d2 - rcut))))) / 2.0;
-			dudd2_I = k2*L2*(-pow(sech(k2*(d2 - rcut)), 2.0) + pow(sech(k2*(-d2 + r_I)), 2.0) -
-				k2*(rcut - r_I)*pow(sech(k2*(-d2 + rcut)), 4.0)*(k2*(rcut - r_I)*(-2.0 + cosh(2.0 * k2*(-d2 + rcut))) + sinh(2.0 * k2*(-d2 + rcut))));
-			dudrcut_I = (2.0 * A*n*pow(rcut, -1.0 - n) + 3.0 * A*pow(n, 2.0)*pow(rcut, -1.0 - n) + A*pow(n, 3.0)*pow(rcut, -1.0 - n) - 4.0 * A*n*pow(rcut, -2.0 - n)*r_I -
-				6.0 * A*pow(n, 2.0)*pow(rcut, -2.0 - n)*r_I - 2.0 * A*pow(n, 3.0)*pow(rcut, -2.0 - n)*r_I + 2.0 * A*n*pow(rcut, -3.0 - n)*pow(r_I, 2.0) +
-				3.0 * A*pow(n, 2.0)*pow(rcut, -3.0 - n)*pow(r_I, 2.0) + A*pow(n, 3.0)*pow(rcut, -3.0 - n)*pow(r_I, 2.0) + 2.0 * k1*L1*pow(sech(k1*(d1 - rcut)), 2.0) +
-				2.0 * k2*L2*pow(sech(k2*(d2 - rcut)), 2.0) - 2.0 * k1*L1*pow(sech(k1*(-d1 + rcut)), 2.0) - 2.0 * pow(k1, 3.0)*L1*pow(rcut, 2.0)*pow(sech(k1*(-d1 + rcut)), 4.0) +
-				4.0 * pow(k1, 3.0)*L1*rcut*r_I*pow(sech(k1*(-d1 + rcut)), 4.0) - 2.0 * pow(k1, 3.0)*L1*pow(r_I, 2.0)*pow(sech(k1*(-d1 + rcut)), 4.0) -
-				2.0 * k2*L2*pow(sech(k2*(-d2 + rcut)), 2.0) - 2.0 * pow(k2, 3.0)*L2*pow(rcut, 2.0)*pow(sech(k2*(-d2 + rcut)), 4.0) +
-				4.0 * pow(k2, 3.0)*L2*rcut*r_I*pow(sech(k2*(-d2 + rcut)), 4.0) - 2.0 * pow(k2, 3.0)*L2*pow(r_I, 2.0)*pow(sech(k2*(-d2 + rcut)), 4.0) +
-				4.0 * pow(k1, 3.0)*L1*pow(rcut, 2.0)*pow(sech(k1*(-d1 + rcut)), 2.0)*pow(tanh(k1*(-d1 + rcut)), 2.0) -
-				8.0 * pow(k1, 3.0)*L1*rcut*r_I*pow(sech(k1*(-d1 + rcut)), 2.0)*pow(tanh(k1*(-d1 + rcut)), 2.0) +
-				4.0 * pow(k1, 3.0)*L1*pow(r_I, 2.0)*pow(sech(k1*(-d1 + rcut)), 2.0)*pow(tanh(k1*(-d1 + rcut)), 2.0) +
-				4.0 * pow(k2, 3.0)*L2*pow(rcut, 2.0)*pow(sech(k2*(-d2 + rcut)), 2.0)*pow(tanh(k2*(-d2 + rcut)), 2.0) -
-				8.0 * pow(k2, 3.0)*L2*rcut*r_I*pow(sech(k2*(-d2 + rcut)), 2.0)*pow(tanh(k2*(-d2 + rcut)), 2.0) +
-				4.0 * pow(k2, 3.0)*L2*pow(r_I, 2.0)*pow(sech(k2*(-d2 + rcut)), 2.0)*pow(tanh(k2*(-d2 + rcut)), 2.0)) / 2.0;
+			if (r_I <= rcut)
+			{
+				dudA_I = -((1.0 + n)*(2.0 + n)) / (2.0*pow(rcut, n)) + n*(2.0 + n)*pow(rcut, -1.0 - n)*r_I - (n*(1.0 + n)*pow(rcut, -2.0 - n)*pow(r_I, 2.0)) / 2.0 + pow(r_I, -n);
+				dudn_I = (pow(rcut, -2.0 - n)*(A*pow(r_I, n)*((-rcut + r_I)*((3.0 + 2.0 * n)*rcut - (1.0 + 2.0 * n)*r_I) +
+					((1.0 + n)*(2.0 + n)*pow(rcut, 2.0) - 2.0 * n*(2.0 + n)*rcut*r_I + n*(1.0 + n)*pow(r_I, 2.0))*log(rcut)) - 2.0 * A*pow(rcut, 2.0 + n)*log(r_I))) / (2.0*pow(r_I, n));
+				dudL1_I = -tanh(k1*(d1 - rcut)) + k1*(rcut - r_I)*pow(sech(k1*(-d1 + rcut)), 2.0)*(-1.0 + k1*(rcut - r_I)*tanh(k1*(d1 - rcut))) - tanh(k1*(-d1 + r_I));
+				dudk1_I = (L1*(6.0 * pow(k1, 2.0)*(d1 - rcut)*pow(rcut - r_I, 2.0)*pow(sech(k1*(d1 - rcut)), 4.0) + 2.0 * (d1 - r_I)*pow(sech(k1*(-d1 + r_I)), 2.0) +
+					2.0 * pow(sech(k1*(d1 - rcut)), 2.0)*(-(d1*(1.0 + 2.0 * pow(k1, 2.0)*pow(rcut - r_I, 2.0))) + 2.0 * pow(k1, 2.0)*rcut*pow(rcut - r_I, 2.0) + r_I +
+					2.0 * k1*(d1 - r_I)*(rcut - r_I)*tanh(k1*(d1 - rcut))))) / 2.0;
+				dudd1_I = k1*L1*(-pow(sech(k1*(d1 - rcut)), 2.0) + pow(sech(k1*(-d1 + r_I)), 2.0) -
+					k1*(rcut - r_I)*pow(sech(k1*(-d1 + rcut)), 4.0)*(k1*(rcut - r_I)*(-2.0 + cosh(2.0 * k1*(-d1 + rcut))) + sinh(2.0 * k1*(-d1 + rcut))));
+				dudL2_I = -tanh(k2*(d2 - rcut)) + k2*(rcut - r_I)*pow(sech(k2*(-d2 + rcut)), 2.0)*(-1.0 + k2*(rcut - r_I)*tanh(k2*(d2 - rcut))) - tanh(k2*(-d2 + r_I));
+				dudk2_I = (L2*(6.0 * pow(k2, 2.0)*(d2 - rcut)*pow(rcut - r_I, 2.0)*pow(sech(k2*(d2 - rcut)), 4.0) + 2.0 * (d2 - r_I)*pow(sech(k2*(-d2 + r_I)), 2.0) +
+					2.0 * pow(sech(k2*(d2 - rcut)), 2.0)*(-(d2*(1.0 + 2.0 * pow(k2, 2.0)*pow(rcut - r_I, 2.0))) + 2.0 * pow(k2, 2.0)*rcut*pow(rcut - r_I, 2.0) + r_I +
+					2.0 * k2*(d2 - r_I)*(rcut - r_I)*tanh(k2*(d2 - rcut))))) / 2.0;
+				dudd2_I = k2*L2*(-pow(sech(k2*(d2 - rcut)), 2.0) + pow(sech(k2*(-d2 + r_I)), 2.0) -
+					k2*(rcut - r_I)*pow(sech(k2*(-d2 + rcut)), 4.0)*(k2*(rcut - r_I)*(-2.0 + cosh(2.0 * k2*(-d2 + rcut))) + sinh(2.0 * k2*(-d2 + rcut))));
+			}
+			else
+			{
+				dudA_I = 0.0;
+				dudn_I = 0.0;
+				dudL1_I = 0.0;
+				dudk1_I = 0.0;
+				dudd1_I = 0.0;
+				dudL2_I = 0.0;
+				dudk2_I = 0.0;
+				dudd2_I = 0.0;
+				//dudrcut_I = 0.0;
+			}
 
-			//second set of potential derivatives
-			dudA_II = -((1.0 + n)*(2.0 + n)) / (2.0*pow(rcut, n)) + n*(2.0 + n)*pow(rcut, -1.0 - n)*r_II - (n*(1.0 + n)*pow(rcut, -2.0 - n)*pow(r_II, 2.0)) / 2.0 + pow(r_II, -n);
-			dudn_II = (pow(rcut, -2.0 - n)*(A*pow(r_II, n)*((-rcut + r_II)*((3.0 + 2.0 * n)*rcut - (1.0 + 2.0 * n)*r_II) +
-				((1.0 + n)*(2.0 + n)*pow(rcut, 2.0) - 2.0 * n*(2.0 + n)*rcut*r_II + n*(1.0 + n)*pow(r_II, 2.0))*log(rcut)) - 2.0 * A*pow(rcut, 2.0 + n)*log(r_II))) / (2.0*pow(r_II, n));
-			dudL1_II = -tanh(k1*(d1 - rcut)) + k1*(rcut - r_II)*pow(sech(k1*(-d1 + rcut)), 2.0)*(-1.0 + k1*(rcut - r_II)*tanh(k1*(d1 - rcut))) - tanh(k1*(-d1 + r_II));
-			dudk1_II = (L1*(6.0 * pow(k1, 2.0)*(d1 - rcut)*pow(rcut - r_II, 2.0)*pow(sech(k1*(d1 - rcut)), 4.0) + 2.0 * (d1 - r_II)*pow(sech(k1*(-d1 + r_II)), 2.0) +
-				2.0 * pow(sech(k1*(d1 - rcut)), 2.0)*(-(d1*(1.0 + 2.0 * pow(k1, 2.0)*pow(rcut - r_II, 2.0))) + 2.0 * pow(k1, 2.0)*rcut*pow(rcut - r_II, 2.0) + r_II +
-				2.0 * k1*(d1 - r_II)*(rcut - r_II)*tanh(k1*(d1 - rcut))))) / 2.0;
-			dudd1_II = k1*L1*(-pow(sech(k1*(d1 - rcut)), 2.0) + pow(sech(k1*(-d1 + r_II)), 2.0) -
-				k1*(rcut - r_II)*pow(sech(k1*(-d1 + rcut)), 4.0)*(k1*(rcut - r_II)*(-2.0 + cosh(2.0 * k1*(-d1 + rcut))) + sinh(2.0 * k1*(-d1 + rcut))));
-			dudL2_II = -tanh(k2*(d2 - rcut)) + k2*(rcut - r_II)*pow(sech(k2*(-d2 + rcut)), 2.0)*(-1.0 + k2*(rcut - r_II)*tanh(k2*(d2 - rcut))) - tanh(k2*(-d2 + r_II));
-			dudk2_II = (L2*(6.0 * pow(k2, 2.0)*(d2 - rcut)*pow(rcut - r_II, 2.0)*pow(sech(k2*(d2 - rcut)), 4.0) + 2.0 * (d2 - r_II)*pow(sech(k2*(-d2 + r_II)), 2.0) +
-				2.0 * pow(sech(k2*(d2 - rcut)), 2.0)*(-(d2*(1.0 + 2.0 * pow(k2, 2.0)*pow(rcut - r_II, 2.0))) + 2.0 * pow(k2, 2.0)*rcut*pow(rcut - r_II, 2.0) + r_II +
-				2.0 * k2*(d2 - r_II)*(rcut - r_II)*tanh(k2*(d2 - rcut))))) / 2.0;
-			dudd2_II = k2*L2*(-pow(sech(k2*(d2 - rcut)), 2.0) + pow(sech(k2*(-d2 + r_II)), 2.0) -
-				k2*(rcut - r_II)*pow(sech(k2*(-d2 + rcut)), 4.0)*(k2*(rcut - r_II)*(-2.0 + cosh(2.0 * k2*(-d2 + rcut))) + sinh(2.0 * k2*(-d2 + rcut))));
-			dudrcut_II = (2.0 * A*n*pow(rcut, -1.0 - n) + 3.0 * A*pow(n, 2.0)*pow(rcut, -1.0 - n) + A*pow(n, 3.0)*pow(rcut, -1.0 - n) - 4.0 * A*n*pow(rcut, -2.0 - n)*r_II -
-				6.0 * A*pow(n, 2.0)*pow(rcut, -2.0 - n)*r_II - 2.0 * A*pow(n, 3.0)*pow(rcut, -2.0 - n)*r_II + 2.0 * A*n*pow(rcut, -3.0 - n)*pow(r_II, 2.0) +
-				3.0 * A*pow(n, 2.0)*pow(rcut, -3.0 - n)*pow(r_II, 2.0) + A*pow(n, 3.0)*pow(rcut, -3.0 - n)*pow(r_II, 2.0) + 2.0 * k1*L1*pow(sech(k1*(d1 - rcut)), 2.0) +
-				2.0 * k2*L2*pow(sech(k2*(d2 - rcut)), 2.0) - 2.0 * k1*L1*pow(sech(k1*(-d1 + rcut)), 2.0) - 2.0 * pow(k1, 3.0)*L1*pow(rcut, 2.0)*pow(sech(k1*(-d1 + rcut)), 4.0) +
-				4.0 * pow(k1, 3.0)*L1*rcut*r_II*pow(sech(k1*(-d1 + rcut)), 4.0) - 2.0 * pow(k1, 3.0)*L1*pow(r_II, 2.0)*pow(sech(k1*(-d1 + rcut)), 4.0) -
-				2.0 * k2*L2*pow(sech(k2*(-d2 + rcut)), 2.0) - 2.0 * pow(k2, 3.0)*L2*pow(rcut, 2.0)*pow(sech(k2*(-d2 + rcut)), 4.0) +
-				4.0 * pow(k2, 3.0)*L2*rcut*r_II*pow(sech(k2*(-d2 + rcut)), 4.0) - 2.0 * pow(k2, 3.0)*L2*pow(r_II, 2.0)*pow(sech(k2*(-d2 + rcut)), 4.0) +
-				4.0 * pow(k1, 3.0)*L1*pow(rcut, 2.0)*pow(sech(k1*(-d1 + rcut)), 2.0)*pow(tanh(k1*(-d1 + rcut)), 2.0) -
-				8.0 * pow(k1, 3.0)*L1*rcut*r_II*pow(sech(k1*(-d1 + rcut)), 2.0)*pow(tanh(k1*(-d1 + rcut)), 2.0) +
-				4.0 * pow(k1, 3.0)*L1*pow(r_II, 2.0)*pow(sech(k1*(-d1 + rcut)), 2.0)*pow(tanh(k1*(-d1 + rcut)), 2.0) +
-				4.0 * pow(k2, 3.0)*L2*pow(rcut, 2.0)*pow(sech(k2*(-d2 + rcut)), 2.0)*pow(tanh(k2*(-d2 + rcut)), 2.0) -
-				8.0 * pow(k2, 3.0)*L2*rcut*r_II*pow(sech(k2*(-d2 + rcut)), 2.0)*pow(tanh(k2*(-d2 + rcut)), 2.0) +
-				4.0 * pow(k2, 3.0)*L2*pow(r_II, 2.0)*pow(sech(k2*(-d2 + rcut)), 2.0)*pow(tanh(k2*(-d2 + rcut)), 2.0)) / 2.0;
 
+			if (r_II <= rcut)
+			{
+				//second set of potential derivatives
+				dudA_II = -((1.0 + n)*(2.0 + n)) / (2.0*pow(rcut, n)) + n*(2.0 + n)*pow(rcut, -1.0 - n)*r_II - (n*(1.0 + n)*pow(rcut, -2.0 - n)*pow(r_II, 2.0)) / 2.0 + pow(r_II, -n);
+				dudn_II = (pow(rcut, -2.0 - n)*(A*pow(r_II, n)*((-rcut + r_II)*((3.0 + 2.0 * n)*rcut - (1.0 + 2.0 * n)*r_II) +
+					((1.0 + n)*(2.0 + n)*pow(rcut, 2.0) - 2.0 * n*(2.0 + n)*rcut*r_II + n*(1.0 + n)*pow(r_II, 2.0))*log(rcut)) - 2.0 * A*pow(rcut, 2.0 + n)*log(r_II))) / (2.0*pow(r_II, n));
+				dudL1_II = -tanh(k1*(d1 - rcut)) + k1*(rcut - r_II)*pow(sech(k1*(-d1 + rcut)), 2.0)*(-1.0 + k1*(rcut - r_II)*tanh(k1*(d1 - rcut))) - tanh(k1*(-d1 + r_II));
+				dudk1_II = (L1*(6.0 * pow(k1, 2.0)*(d1 - rcut)*pow(rcut - r_II, 2.0)*pow(sech(k1*(d1 - rcut)), 4.0) + 2.0 * (d1 - r_II)*pow(sech(k1*(-d1 + r_II)), 2.0) +
+					2.0 * pow(sech(k1*(d1 - rcut)), 2.0)*(-(d1*(1.0 + 2.0 * pow(k1, 2.0)*pow(rcut - r_II, 2.0))) + 2.0 * pow(k1, 2.0)*rcut*pow(rcut - r_II, 2.0) + r_II +
+					2.0 * k1*(d1 - r_II)*(rcut - r_II)*tanh(k1*(d1 - rcut))))) / 2.0;
+				dudd1_II = k1*L1*(-pow(sech(k1*(d1 - rcut)), 2.0) + pow(sech(k1*(-d1 + r_II)), 2.0) -
+					k1*(rcut - r_II)*pow(sech(k1*(-d1 + rcut)), 4.0)*(k1*(rcut - r_II)*(-2.0 + cosh(2.0 * k1*(-d1 + rcut))) + sinh(2.0 * k1*(-d1 + rcut))));
+				dudL2_II = -tanh(k2*(d2 - rcut)) + k2*(rcut - r_II)*pow(sech(k2*(-d2 + rcut)), 2.0)*(-1.0 + k2*(rcut - r_II)*tanh(k2*(d2 - rcut))) - tanh(k2*(-d2 + r_II));
+				dudk2_II = (L2*(6.0 * pow(k2, 2.0)*(d2 - rcut)*pow(rcut - r_II, 2.0)*pow(sech(k2*(d2 - rcut)), 4.0) + 2.0 * (d2 - r_II)*pow(sech(k2*(-d2 + r_II)), 2.0) +
+					2.0 * pow(sech(k2*(d2 - rcut)), 2.0)*(-(d2*(1.0 + 2.0 * pow(k2, 2.0)*pow(rcut - r_II, 2.0))) + 2.0 * pow(k2, 2.0)*rcut*pow(rcut - r_II, 2.0) + r_II +
+					2.0 * k2*(d2 - r_II)*(rcut - r_II)*tanh(k2*(d2 - rcut))))) / 2.0;
+				dudd2_II = k2*L2*(-pow(sech(k2*(d2 - rcut)), 2.0) + pow(sech(k2*(-d2 + r_II)), 2.0) -
+					k2*(rcut - r_II)*pow(sech(k2*(-d2 + rcut)), 4.0)*(k2*(rcut - r_II)*(-2.0 + cosh(2.0 * k2*(-d2 + rcut))) + sinh(2.0 * k2*(-d2 + rcut))));
+			}
+			else
+			{
+				dudA_II = 0.0;
+				dudn_II = 0.0;
+				dudL1_II = 0.0;
+				dudk1_II = 0.0;
+				dudd1_II = 0.0;
+				dudL2_II = 0.0;
+				dudk2_II = 0.0;
+				dudd2_II = 0.0;
+				//dudrcut_II = 0.0;
+			}
+
+
+			
 			//actually do the damn integral
-			grad_A = grad_A + 0.5*((r_I*r_I*dudA_I*(gr_I - gr_tgt_I)) + (r_II*r_II*dudA_II*(gr_II - gr_tgt_II)))*gromacs_settings.delta_r;
-			grad_n = grad_n + 0.5*((r_I*r_I*dudn_I*(gr_I - gr_tgt_I)) + (r_II*r_II*dudn_II*(gr_II - gr_tgt_II)))*gromacs_settings.delta_r;
-			grad_L1 = grad_L1 + 0.5*((r_I*r_I*dudL1_I*(gr_I - gr_tgt_I)) + (r_II*r_II*dudL1_II*(gr_II - gr_tgt_II)))*gromacs_settings.delta_r;
-			grad_k1 = grad_k1 + 0.5*((r_I*r_I*dudk1_I*(gr_I - gr_tgt_I)) + (r_II*r_II*dudk1_II*(gr_II - gr_tgt_II)))*gromacs_settings.delta_r;
-			grad_d1 = grad_d1 + 0.5*((r_I*r_I*dudd1_I*(gr_I - gr_tgt_I)) + (r_II*r_II*dudd1_II*(gr_II - gr_tgt_II)))*gromacs_settings.delta_r;
-			grad_L2 = grad_L2 + 0.5*((r_I*r_I*dudL2_I*(gr_I - gr_tgt_I)) + (r_II*r_II*dudL2_II*(gr_II - gr_tgt_II)))*gromacs_settings.delta_r;
-			grad_k2 = grad_k2 + 0.5*((r_I*r_I*dudk2_I*(gr_I - gr_tgt_I)) + (r_II*r_II*dudk2_II*(gr_II - gr_tgt_II)))*gromacs_settings.delta_r;
-			grad_d2 = grad_d2 + 0.5*((r_I*r_I*dudd2_I*(gr_I - gr_tgt_I)) + (r_II*r_II*dudd2_II*(gr_II - gr_tgt_II)))*gromacs_settings.delta_r;
-			grad_rcut = grad_rcut + 0.5*((r_I*r_I*dudrcut_I*(gr_I - gr_tgt_I)) + (r_II*r_II*dudrcut_II*(gr_II - gr_tgt_II)))*gromacs_settings.delta_r;
+			if (isfinite(dudA_I) && isfinite(dudn_I))
+			{
+				grad_A = grad_A + 0.5*((r_I*r_I*dudA_I*(gr_I - gr_tgt_I)) + (r_II*r_II*dudA_II*(gr_II - gr_tgt_II)))*gromacs_settings.delta_r;
+				grad_n = grad_n + 0.5*((r_I*r_I*dudn_I*(gr_I - gr_tgt_I)) + (r_II*r_II*dudn_II*(gr_II - gr_tgt_II)))*gromacs_settings.delta_r;
+				grad_L1 = grad_L1 + 0.5*((r_I*r_I*dudL1_I*(gr_I - gr_tgt_I)) + (r_II*r_II*dudL1_II*(gr_II - gr_tgt_II)))*gromacs_settings.delta_r;
+				grad_k1 = grad_k1 + 0.5*((r_I*r_I*dudk1_I*(gr_I - gr_tgt_I)) + (r_II*r_II*dudk1_II*(gr_II - gr_tgt_II)))*gromacs_settings.delta_r;
+				grad_d1 = grad_d1 + 0.5*((r_I*r_I*dudd1_I*(gr_I - gr_tgt_I)) + (r_II*r_II*dudd1_II*(gr_II - gr_tgt_II)))*gromacs_settings.delta_r;
+				grad_L2 = grad_L2 + 0.5*((r_I*r_I*dudL2_I*(gr_I - gr_tgt_I)) + (r_II*r_II*dudL2_II*(gr_II - gr_tgt_II)))*gromacs_settings.delta_r;
+				grad_k2 = grad_k2 + 0.5*((r_I*r_I*dudk2_I*(gr_I - gr_tgt_I)) + (r_II*r_II*dudk2_II*(gr_II - gr_tgt_II)))*gromacs_settings.delta_r;
+				grad_d2 = grad_d2 + 0.5*((r_I*r_I*dudd2_I*(gr_I - gr_tgt_I)) + (r_II*r_II*dudd2_II*(gr_II - gr_tgt_II)))*gromacs_settings.delta_r;
+				//grad_rcut = grad_rcut + 0.5*((r_I*r_I*dudrcut_I*(gr_I - gr_tgt_I)) + (r_II*r_II*dudrcut_II*(gr_II - gr_tgt_II)))*gromacs_settings.delta_r;
+			}
+
+
+
+
+			//write ot file for testing//////////////////////////////////////
+			//dudA_stream << r_I << "," << (r_I*r_I*dudA_I*(gr_I - gr_tgt_I)) << "," << gr_I << "," << gr_tgt_I << endl;
+			//dudn_stream << r_I << "," << (r_I*r_I*dudn_I*(gr_I - gr_tgt_I)) << "," << gr_I << "," << gr_tgt_I << endl;
+			//dudL1_stream << r_I << "," << (r_I*r_I*dudL1_I*(gr_I - gr_tgt_I)) << "," << gr_I << "," << gr_tgt_I << endl;
+			//dudk1_stream << r_I << "," << (r_I*r_I*dudk1_I*(gr_I - gr_tgt_I)) << "," << gr_I << "," << gr_tgt_I << endl;
+			//dudd1_stream << r_I << "," << (r_I*r_I*dudd1_I*(gr_I - gr_tgt_I)) << "," << gr_I << "," << gr_tgt_I << endl;
+			//dudL2_stream << r_I << "," << (r_I*r_I*dudL2_I*(gr_I - gr_tgt_I)) << "," << gr_I << "," << gr_tgt_I << endl;
+			//dudk2_stream << r_I << "," << (r_I*r_I*dudk2_I*(gr_I - gr_tgt_I)) << "," << gr_I << "," << gr_tgt_I << endl;
+			//dudd2_stream << r_I << "," << (r_I*r_I*dudd2_I*(gr_I - gr_tgt_I)) << "," << gr_I << "," << gr_tgt_I << endl;
+			/////////////////////////////////////////////////////////////////
+
+
+
+
+
+
 
 			gr_convergence = gr_convergence + 0.5*((r_I*r_I*(gr_I - gr_tgt_I)*(gr_I - gr_tgt_I)) + (r_II*r_II*(gr_II - gr_tgt_II)*(gr_II - gr_tgt_II)))*gromacs_settings.delta_r;
 		}
@@ -175,7 +218,7 @@ array_pair_and_num_elements potential_data::optimize_crystal_potential(int last_
 		grad_magnitude = sqrt((grad_A*grad_A) + (grad_n*grad_n) 
 			+ (grad_L1*grad_L1) + (grad_k1*grad_k1) + (grad_d1*grad_d1)
 			+ (grad_L2*grad_L2) + (grad_k2*grad_k2) + (grad_d2*grad_d2)
-			+ (grad_rcut*grad_rcut));
+			/*+ (grad_rcut*grad_rcut)*/);
 		*unscaled_gradient_pointer = grad_magnitude;
 
 		//scale the gradient
@@ -187,7 +230,7 @@ array_pair_and_num_elements potential_data::optimize_crystal_potential(int last_
 		grad_L2 = gromacs_settings.gradient_scale*grad_L2;
 		grad_k2 = gromacs_settings.gradient_scale*grad_k2;
 		grad_d2 = gromacs_settings.gradient_scale*grad_d2;
-		grad_rcut = gromacs_settings.gradient_scale*grad_rcut;
+		//grad_rcut = gromacs_settings.gradient_scale*grad_rcut;
 
 		//add in the momentum contribution first and then reset the step for passing back via the pointer
 		step_A = grad_A + gromacs_settings.momentum_scale * (*(d_potential_parameters + 0)); *(d_potential_parameters + 0) = step_A;
@@ -198,14 +241,27 @@ array_pair_and_num_elements potential_data::optimize_crystal_potential(int last_
 		step_L2 = grad_L2 + gromacs_settings.momentum_scale * (*(d_potential_parameters + 5)); *(d_potential_parameters + 5) = step_L2;
 		step_k2 = grad_k2 + gromacs_settings.momentum_scale * (*(d_potential_parameters + 6)); *(d_potential_parameters + 6) = step_k2;
 		step_d2 = grad_d2 + gromacs_settings.momentum_scale * (*(d_potential_parameters + 7)); *(d_potential_parameters + 7) = step_d2;
-		step_rcut = grad_rcut + gromacs_settings.momentum_scale * (*(d_potential_parameters + 8)); *(d_potential_parameters + 8) = step_rcut;
+		//step_rcut = grad_rcut + gromacs_settings.momentum_scale * (*(d_potential_parameters + 8)); *(d_potential_parameters + 8) = step_rcut;
 
 		
 		//any constraints desired...
 		
 
 		//update the parameters and pass back
-		A = A + step_A; *(potential_parameters + 0) = A;
+		//double A_min = 2.0;
+		//double n_min = 2.0;
+		//double L1_min = 2.0;
+		//double k1_min = 2.0;
+		//double d1_min = 
+
+
+
+
+		//if (A + step_A >= 2.0)
+		//	A = A + step_A; 
+		//else
+			
+		A = A + step_A;	*(potential_parameters + 0) = A;
 		n = n + step_n; *(potential_parameters + 1) = n;
 		L1 = L1 + step_L1; *(potential_parameters + 2) = L1;
 		k1 = k1 + step_k1; *(potential_parameters + 3) = k1;
@@ -213,7 +269,6 @@ array_pair_and_num_elements potential_data::optimize_crystal_potential(int last_
 		L2 = L2 + step_L2; *(potential_parameters + 5) = L2;
 		k2 = k2 + step_k2; *(potential_parameters + 6) = k2;
 		d2 = d2 + step_d2; *(potential_parameters + 7) = d2;
-		rcut = rcut + step_rcut; *(potential_parameters + 8) = rcut;
 
 	}
 
@@ -301,6 +356,20 @@ array_pair_and_num_elements potential_data::optimize_crystal_potential(int last_
 	/////////////////////////////////////////////////////////////////////////////////////////////
 	///////////////////////////////////////FINAL STUFF///////////////////////////////////////////
 	/////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
+	///////////////////////////////////////////////////
+	//dudA_stream.close();
+	//dudn_stream.close();
+	//dudL1_stream.close();
+	//dudk1_stream.close();
+	//dudd1_stream.close();
+	//dudL2_stream.close();
+	//dudk2_stream.close();
+	//dudd2_stream.close();
+
+	////////////////////////////////////////////////////
 
 
 

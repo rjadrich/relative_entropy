@@ -34,10 +34,6 @@ void copy_file(string initialFilePath, string outputFilePath); //generic copy fi
 bool last_step_post_process_status(int last_step); //code that actually checks for "post_process_done.txt" in last step
 void post_process_last_step(int last_step); //actually post processes the data from the last step if not already done 
 void update_auxillary_script(int last_step); //updates some commands to be executed by primary script after creating new step (i.e., grdf)
-void new_step_grompp_files_script(int last_step); //creates script to grompp the files for simulation
-void new_step_mdrun_gromacs_script(int last_step); //creates script to start the gromacs simulation
-void new_step_rdf_gromacs_script(int last_step); //creates script to start the rdf calculation
-void new_step_gromacs_scripts(int last_step); //calls the three gromacs creation scripts to be self contained and make modifying easier for other sim. packages
 void copy_gromacs_files(string last_step_directory, string next_step_directory); //copies over gromacs required files to new step directory
 array_pair_and_num_elements fetch_gr_data(string last_step_directory, gromacs_settings_class gromacs_settings); //extracts the RDF data and only reads in as much as is in the new gr file
 void create_table_file(int last_step, string last_step_directory, array_pair_and_num_elements table_data, gromacs_settings_class gromacs_settings); //generates post processed table file
@@ -575,58 +571,6 @@ void update_auxillary_script(int last_step)
 	auxillary_script_filestream.close();
 }
 
-void new_step_grompp_files_script(int last_step) //DELETE
-{
-	string file_address = "./step_" + convert_int_to_string(last_step + 1) + "/grompp_files.sh"; //contains string with new file directory
-	ofstream grompp_files_script_filestream(file_address.c_str(), ios::out | ios::trunc); //for writing commands to be run by the grompp script
-
-	grompp_files_script_filestream << "grompp -f grompp.mdp -po md_out.mdp -c conf.gro -n index.ndx -p topol.top -o topol.tpr" << endl;
-	grompp_files_script_filestream << endl;
-	grompp_files_script_filestream << "grompp_exit=$?" << endl;
-	grompp_files_script_filestream << endl;
-	grompp_files_script_filestream << "exit $grompp_exit" << endl;
-
-	grompp_files_script_filestream.close();
-}
-
-void new_step_mdrun_gromacs_script(int last_step) //DELETE
-{
-	string file_address = "./step_" + convert_int_to_string(last_step + 1) + "/mdrun_gromacs.sh"; //contains string with new file directory
-	ofstream mdrun_gromacs_script_filestream(file_address.c_str(), ios::out | ios::trunc); //for writing commands to be run by the mdrun script
-
-	mdrun_gromacs_script_filestream << "mdrun -s topol.tpr -c conf_out.gro -o traj.trr -x traj.xtc" << endl;
-	mdrun_gromacs_script_filestream << endl;
-	mdrun_gromacs_script_filestream << "mdrun_exit=$?" << endl;
-	mdrun_gromacs_script_filestream << endl;
-	mdrun_gromacs_script_filestream << "exit $mdrun_exit" << endl;
-
-	mdrun_gromacs_script_filestream.close();
-}
-
-void new_step_rdf_gromacs_script(int last_step) //DELETE
-{
-	string file_address = "./step_" + convert_int_to_string(last_step + 1) + "/rdf_gromacs.sh"; //contains string with new file directory
-	ofstream rdf_gromacs_script_filestream(file_address.c_str(), ios::out | ios::trunc); //for writing commands to be run by the rdf script
-
-	rdf_gromacs_script_filestream << "g_rdf -f traj.xtc -s topol.tpr -n index.ndx -o rdf.xvg << 'EOF'" << endl;
-	rdf_gromacs_script_filestream << "2" << endl;
-	rdf_gromacs_script_filestream << "2" << endl;
-	rdf_gromacs_script_filestream << "'EOF'" << endl;
-	rdf_gromacs_script_filestream << endl;
-	rdf_gromacs_script_filestream << "rdf_exit=$?" << endl;
-	rdf_gromacs_script_filestream << endl;
-	rdf_gromacs_script_filestream << "exit $rdf_exit" << endl;
-
-	rdf_gromacs_script_filestream.close();
-}
-
-void new_step_gromacs_scripts(int last_step) //DELETE
-{
-	new_step_grompp_files_script(last_step);
-	new_step_mdrun_gromacs_script(last_step);
-	new_step_rdf_gromacs_script(last_step);
-}
-
 void copy_gromacs_files(string last_step_directory, string next_step_directory)
 {
 	/*//COPY THE POST PROCESSED, UPDATED INFO FOR USE IN NEW STEP FOLDER
@@ -646,7 +590,8 @@ void copy_gromacs_files(string last_step_directory, string next_step_directory)
 	//COPY THE POST PROCESSED, UPDATED INFO FOR USE IN NEW STEP FOLDER
 	//new starting state configuration, parameters (plus table file) and grompp file with cutoff adjustment
 	log_filestream << "copying last step simulation files to new step directory" << endl;
-	copy_file(last_step_directory + "/conf_out.gro", next_step_directory + "/conf.gro");
+	//copy_file(last_step_directory + "/conf_out.gro", next_step_directory + "/conf.gro");
+	copy_file(last_step_directory + "/conf.gro", next_step_directory + "/conf.gro");
 	copy_file(last_step_directory + "/parameters_out.txt", next_step_directory + "/parameters.txt");
 	copy_file(last_step_directory + "/d_parameters_out.txt", next_step_directory + "/d_parameters.txt");
 	copy_file(last_step_directory + "/table_out.xvg", next_step_directory + "/table.xvg");
@@ -935,7 +880,7 @@ void create_new_mdrun_gromacs_script(int last_step)
 	string file_address = "./step_" + convert_int_to_string(last_step) + "/mdrun_gromacs_out.sh"; //contains string with new file directory
 	ofstream mdrun_gromacs_script_filestream(file_address.c_str(), ios::out | ios::trunc); //for writing commands to be run by the mdrun script
 
-	mdrun_gromacs_script_filestream << "gmx mdrun -s topol.tpr -c conf_out.gro -o traj.trr -x traj.xtc" << endl;
+	mdrun_gromacs_script_filestream << "gmx mdrun -s topol.tpr -c conf_out.gro -o traj.trr -x traj.xtc -pin on" << endl;
 	mdrun_gromacs_script_filestream << endl;
 	mdrun_gromacs_script_filestream << "mdrun_exit=$?" << endl;
 	mdrun_gromacs_script_filestream << endl;

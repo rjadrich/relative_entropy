@@ -28,8 +28,8 @@ bool potential_data::set_potential(int potential_type_input)
 	}
 	else if (potential_type == 2) //crystal_potential
 	{
-		num_parameters = 8;
-		num_d_parameters = 8;
+		num_parameters = 9;
+		num_d_parameters = 9;
 		return true;
 	}
 	else
