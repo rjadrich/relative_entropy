@@ -3,6 +3,12 @@
 #include "potentials.h"//need this in every potential file
 ///////////////////////////////////////////////////////
 
+//USE GLOBAL LOG FILE DEFINED IN MAIN CODE
+#include <fstream>
+#include <stdlib.h>
+using namespace std;
+extern ofstream log_filestream;
+
 //DEFINES THE NUMBER OF PARAMETERS NEEDED FOR EACH POTENTIAL AND RETURN TRUE IF SET CORRECTLY
 bool potential_data::set_potential(int potential_type_input)
 {
@@ -31,6 +37,32 @@ bool potential_data::set_potential(int potential_type_input)
 		num_parameters = 9;
 		num_d_parameters = 9;
 		return true;
+	}
+	else if (potential_type == -1) //akima splined potential (for this I read in choice from a file)
+	{
+		ifstream spline_filestream;
+		spline_filestream.open("num_spline_parameters.txt");
+		if (spline_filestream >> num_parameters)
+		{
+			num_d_parameters = num_parameters;
+			if (num_parameters < 6) //chose 6 sort of arbitrarily
+			{
+				log_filestream << "not enough spline parameters (minimum is set to 6): " << num_parameters << " -> killing!" << endl;
+				log_filestream << "///////////////////END RE CODE/////////////////////" << endl << endl;
+				exit(EXIT_FAILURE);
+			}
+			else
+			{
+				log_filestream << "set the number of spline parameters: " << num_parameters << endl;
+			}
+		}
+		else
+		{
+			log_filestream << "could not read in the number of spline parameters (file missing?) -> killing!" << endl;
+			log_filestream << "///////////////////END RE CODE/////////////////////" << endl << endl;
+			exit(EXIT_FAILURE);
+		}
+		spline_filestream.close();
 	}
 	else
 	{
@@ -80,6 +112,12 @@ array_pair_and_num_elements potential_data::optimize_potential(int last_step, ar
 		return optimize_crystal_potential(last_step, gr_data,
 			potential_parameters, d_potential_parameters, gromacs_settings,
 			md_cutoff_pointer, unscaled_gradient_pointer, gr_convergence_pointer);
+	}
+	else if (potential_type == -1) //akima splined potential
+	{
+		log_filestream << "akima splined potential not coded yet -> killing!" << endl;
+		log_filestream << "///////////////////END RE CODE/////////////////////" << endl << endl;
+		exit(EXIT_FAILURE);
 	}
 
 	//NEW POTENTIALS...

@@ -369,7 +369,7 @@ void post_process_last_step(int last_step)
 		gr_data = fetch_gr_data(last_step_directory, gromacs_settings);
 	}
 
-	//READ IN THE FIRST LINE OF PARAMETERS FILE TO ESTABLISH THE POTENTIAL TYPE (AND THUS # OF PARAMETERS)
+	//READ IN THE FIRST LINE OF PARAMETERS FILE TO ESTABLISH THE POTENTIAL TYPE 
 	if (!(potential_parameters_filestream >> potential_type))
 	{
 		log_filestream << "could not extract potential type from last step parameters file -> killing!" << endl;
@@ -591,7 +591,7 @@ void copy_gromacs_files(string last_step_directory, string next_step_directory)
 	//new starting state configuration, parameters (plus table file) and grompp file with cutoff adjustment
 	log_filestream << "copying last step simulation files to new step directory" << endl;
 	//copy_file(last_step_directory + "/conf_out.gro", next_step_directory + "/conf.gro");
-	copy_file(last_step_directory + "/conf.gro", next_step_directory + "/conf.gro");
+	copy_file(last_step_directory + "/conf_out.gro", next_step_directory + "/conf.gro");
 	copy_file(last_step_directory + "/parameters_out.txt", next_step_directory + "/parameters.txt");
 	copy_file(last_step_directory + "/d_parameters_out.txt", next_step_directory + "/d_parameters.txt");
 	copy_file(last_step_directory + "/table_out.xvg", next_step_directory + "/table.xvg");
