@@ -8,12 +8,16 @@
 #include <stdlib.h> //for malloc
 #include <iostream>
 #include <fstream>
-#include <vector>
-#include "../spline.h"
+#include "akima.h"
 
 using namespace std;
 
-void df_da(tk::spline s, num_params);
+//DEFINITION OF AUXILLARY DATA EXTRACTION AND OUTPUT FUNCTIONS
+void extract_data(/*input*/ double *potential_parameters, int num_parameters,
+	/*output*/ double *R, double *U_step, int *State);
+void format_data(/*output*/ double *potential_parameters,
+	/*input*/int num_parameters, double *R, double *U_step, int *State);
+
 
 //ACTUAL POTENTIAL OPTIMIZER FUNCTION
 array_pair_and_num_elements potential_data::optimize_crystal_potential(int last_step, array_pair_and_num_elements gr_data,
@@ -21,59 +25,45 @@ array_pair_and_num_elements potential_data::optimize_crystal_potential(int last_
 	double *md_cutoff_pointer, double *unscaled_gradient_pointer, double *gr_convergence_pointer)
 {
 	//OPTIMIZATION PARAMETERS
-	double r_cut = *(potential_parameters + 0); //generally less than md_cutoff (just find the closest grid point)
-	double diff_per_interval = *(potential_parameters + 1); //number of differential elements per larger interval
-	double num_intervals = *(potential_parameters + 2); //number of intervals backtracking from the r_cut
-	double num_buff_intervals = *(potential_parameters + 3); //number of intervals between r_cut and where things are actually optimized
+	//for this potential we just work with the potential_parameters directly
 
-	num_params = 100;
-	//OPTIMIZATION PARAMETERS
-	for (i = 0; i <= 100; i++)
-	{
+	//PARAMETERS FOR MAKING SPLINE
+	double *R, *U_step, *grad_U_step;
+	int *State;
+	Maths::Interpolation::Akima Spline(num_parameters); //potential spline
+	Maths::Interpolation::Akima Spline_L(num_parameters); //spline for derivative calc (left side)
+	Maths::Interpolation::Akima Spline_R(num_parameters); //spline for derivative calc (right side)
 
-	}
+	//ALLOCATE MEMORY FOR X, Y AND STATE (FIXED OR NOT FIXED)
+	R = (double*)malloc(sizeof(double) * num_parameters); 
+	U_step = (double*)malloc(sizeof(double) * num_parameters); //for mental simplicity the last element exists but is just ignored
+	grad_U_step = (double*)malloc(sizeof(double) * num_parameters); //stores the various gradients
+	State = (int*)malloc(sizeof(int) * num_parameters); //for mental simplicity the last element exists but is just ignored
 
-
-	//STORAGE POTENTIAL AND DERIVATIVE (ALL ARE IN UNITS OF KBT)
-	double u, dudr;
 	//GENERIC DISTANCE VARIABLE
 	double r;
 	//GENERIC LOOP INTEGER
-	int i;
+	int i, j, k;
 	//TABLE CREATION PARAMETERS
 	array_pair_and_num_elements table_data; //stores the generated table data to pass back
-	int md_cutoff_index; //location in array of the last finite point (cutoff)
-	double u_at_cutoff; //value of potential at cutoff to shift it with
 	double *table_u, *table_du; //table arrays
 	int num_table_entries; //number of elements in table arrays
 	//RDF STORAGE
 	int num_lines_gr; //again, better than using gr_data directly
-	//GRADIENT CALCULATION
-	double grad_A, grad_n;
-	double grad_L1, grad_k1, grad_d1;
-	double grad_L2, grad_k2, grad_d2;
 	//double grad_rcut;
 		/////////////////////////////////////////////////////////////////
-	double grad_magnitude, inverse_grad_magnitude;
+	double grad_magnitude;
 	double r_I, r_II;
 	double gr_I, gr_II;
 	double gr_tgt_I, gr_tgt_II;
 		/////////////////////////////////////////////////////////////////
-	double dudA_I, dudA_II, dudn_I, dudn_II;
-	double dudL1_I, dudL1_II, dudk1_I, dudk1_II, dudd1_I, dudd1_II;
-	double dudL2_I, dudL2_II, dudk2_I, dudk2_II, dudd2_I, dudd2_II;
-	//double dudrcut_I, dudrcut_II;
 	//GR CONVERGENCE
 	double gr_convergence;
+
 	//MOMENTUM
-	double step_A, step_n;
-	double step_L1, step_k1, step_d1;
-	double step_L2, step_k2, step_d2;
-	//double step_rcut;
+
 	//CONSTRAINED AMPLITUDE
-		//none right now
-	//SOME OTHER VARIABLES USED IN POTENTIAL
-	double P, Q, R;
+
 	//DELETE
 	//ofstream dudA_stream("./dudA.csv", ios::out | ios::trunc); //for writing commands to be run by the global script (for gromacs just g rdf)
 	//ofstream dudn_stream("./dudn.csv", ios::out | ios::trunc); //for writing commands to be run by the global script (for gromacs just g rdf)
@@ -88,198 +78,99 @@ array_pair_and_num_elements potential_data::optimize_crystal_potential(int last_
 	///////////////////////////////////UPDATING PARAMETERS///////////////////////////////////////
 	/////////////////////////////////////////////////////////////////////////////////////////////
 
+	//EXTRACT (FORMAT) THE DATA FOR USE IN THE AKIMA SPLINING
+	extract_data(/*input*/ potential_parameters, num_parameters, /*output*/ R, U_step, State);
+
 	//EXTRACT MEMORY ADDRESS FROM GR_DATA
 	num_lines_gr = gr_data.num_elements;
 
 	//IF LAST STEP IS NOT ZERO CALCULATE UPDATES (THIS IS FOR INTEGRALS)
 	if (last_step != 0)
 	{
-		//INTEGRAL FOR FINDING THE GRADIENT TOWARDS LARGER PROBABILITY
-		grad_A = 0.0;
-		grad_n = 0.0;
-		grad_L1 = 0.0;
-		grad_k1 = 0.0;
-		grad_d1 = 0.0;
-		grad_L2 = 0.0;
-		grad_k2 = 0.0;
-		grad_d2 = 0.0;
-		//grad_rcut = 0.0;
-		gr_convergence = 0.0;
-		for (i = 0; i < num_lines_gr - 1; i++)
+		//INITIALIZE THE GRADIENT ARRAY
+		for (i = 0; i < num_parameters; i++)
 		{
-			//using trapezoids so need  two values
-			r_I = (double)i*gromacs_settings.delta_r;
-			r_II = (double)(i + 1)*gromacs_settings.delta_r;
-
-			//fill in rdf data
-			gr_I = *(gr_data.array_1 + i);
-			gr_II = *(gr_data.array_1 + i + 1);
-			gr_tgt_I = *(gr_data.array_2 + i);
-			gr_tgt_II = *(gr_data.array_2 + i + 1);
-
-			//first set of potential derivatives
-			if (r_I <= rcut)
-			{
-				dudA_I = -((1.0 + n)*(2.0 + n)) / (2.0*pow(rcut, n)) + n*(2.0 + n)*pow(rcut, -1.0 - n)*r_I - (n*(1.0 + n)*pow(rcut, -2.0 - n)*pow(r_I, 2.0)) / 2.0 + pow(r_I, -n);
-				dudn_I = (pow(rcut, -2.0 - n)*(A*pow(r_I, n)*((-rcut + r_I)*((3.0 + 2.0 * n)*rcut - (1.0 + 2.0 * n)*r_I) +
-					((1.0 + n)*(2.0 + n)*pow(rcut, 2.0) - 2.0 * n*(2.0 + n)*rcut*r_I + n*(1.0 + n)*pow(r_I, 2.0))*log(rcut)) - 2.0 * A*pow(rcut, 2.0 + n)*log(r_I))) / (2.0*pow(r_I, n));
-				dudL1_I = -tanh(k1*(d1 - rcut)) + k1*(rcut - r_I)*pow(sech(k1*(-d1 + rcut)), 2.0)*(-1.0 + k1*(rcut - r_I)*tanh(k1*(d1 - rcut))) - tanh(k1*(-d1 + r_I));
-				dudk1_I = (L1*(6.0 * pow(k1, 2.0)*(d1 - rcut)*pow(rcut - r_I, 2.0)*pow(sech(k1*(d1 - rcut)), 4.0) + 2.0 * (d1 - r_I)*pow(sech(k1*(-d1 + r_I)), 2.0) +
-					2.0 * pow(sech(k1*(d1 - rcut)), 2.0)*(-(d1*(1.0 + 2.0 * pow(k1, 2.0)*pow(rcut - r_I, 2.0))) + 2.0 * pow(k1, 2.0)*rcut*pow(rcut - r_I, 2.0) + r_I +
-					2.0 * k1*(d1 - r_I)*(rcut - r_I)*tanh(k1*(d1 - rcut))))) / 2.0;
-				dudd1_I = k1*L1*(-pow(sech(k1*(d1 - rcut)), 2.0) + pow(sech(k1*(-d1 + r_I)), 2.0) -
-					k1*(rcut - r_I)*pow(sech(k1*(-d1 + rcut)), 4.0)*(k1*(rcut - r_I)*(-2.0 + cosh(2.0 * k1*(-d1 + rcut))) + sinh(2.0 * k1*(-d1 + rcut))));
-				dudL2_I = -tanh(k2*(d2 - rcut)) + k2*(rcut - r_I)*pow(sech(k2*(-d2 + rcut)), 2.0)*(-1.0 + k2*(rcut - r_I)*tanh(k2*(d2 - rcut))) - tanh(k2*(-d2 + r_I));
-				dudk2_I = (L2*(6.0 * pow(k2, 2.0)*(d2 - rcut)*pow(rcut - r_I, 2.0)*pow(sech(k2*(d2 - rcut)), 4.0) + 2.0 * (d2 - r_I)*pow(sech(k2*(-d2 + r_I)), 2.0) +
-					2.0 * pow(sech(k2*(d2 - rcut)), 2.0)*(-(d2*(1.0 + 2.0 * pow(k2, 2.0)*pow(rcut - r_I, 2.0))) + 2.0 * pow(k2, 2.0)*rcut*pow(rcut - r_I, 2.0) + r_I +
-					2.0 * k2*(d2 - r_I)*(rcut - r_I)*tanh(k2*(d2 - rcut))))) / 2.0;
-				dudd2_I = k2*L2*(-pow(sech(k2*(d2 - rcut)), 2.0) + pow(sech(k2*(-d2 + r_I)), 2.0) -
-					k2*(rcut - r_I)*pow(sech(k2*(-d2 + rcut)), 4.0)*(k2*(rcut - r_I)*(-2.0 + cosh(2.0 * k2*(-d2 + rcut))) + sinh(2.0 * k2*(-d2 + rcut))));
-			}
-			else
-			{
-				dudA_I = 0.0;
-				dudn_I = 0.0;
-				dudL1_I = 0.0;
-				dudk1_I = 0.0;
-				dudd1_I = 0.0;
-				dudL2_I = 0.0;
-				dudk2_I = 0.0;
-				dudd2_I = 0.0;
-				//dudrcut_I = 0.0;
-			}
-
-
-			if (r_II <= rcut)
-			{
-				//second set of potential derivatives
-				dudA_II = -((1.0 + n)*(2.0 + n)) / (2.0*pow(rcut, n)) + n*(2.0 + n)*pow(rcut, -1.0 - n)*r_II - (n*(1.0 + n)*pow(rcut, -2.0 - n)*pow(r_II, 2.0)) / 2.0 + pow(r_II, -n);
-				dudn_II = (pow(rcut, -2.0 - n)*(A*pow(r_II, n)*((-rcut + r_II)*((3.0 + 2.0 * n)*rcut - (1.0 + 2.0 * n)*r_II) +
-					((1.0 + n)*(2.0 + n)*pow(rcut, 2.0) - 2.0 * n*(2.0 + n)*rcut*r_II + n*(1.0 + n)*pow(r_II, 2.0))*log(rcut)) - 2.0 * A*pow(rcut, 2.0 + n)*log(r_II))) / (2.0*pow(r_II, n));
-				dudL1_II = -tanh(k1*(d1 - rcut)) + k1*(rcut - r_II)*pow(sech(k1*(-d1 + rcut)), 2.0)*(-1.0 + k1*(rcut - r_II)*tanh(k1*(d1 - rcut))) - tanh(k1*(-d1 + r_II));
-				dudk1_II = (L1*(6.0 * pow(k1, 2.0)*(d1 - rcut)*pow(rcut - r_II, 2.0)*pow(sech(k1*(d1 - rcut)), 4.0) + 2.0 * (d1 - r_II)*pow(sech(k1*(-d1 + r_II)), 2.0) +
-					2.0 * pow(sech(k1*(d1 - rcut)), 2.0)*(-(d1*(1.0 + 2.0 * pow(k1, 2.0)*pow(rcut - r_II, 2.0))) + 2.0 * pow(k1, 2.0)*rcut*pow(rcut - r_II, 2.0) + r_II +
-					2.0 * k1*(d1 - r_II)*(rcut - r_II)*tanh(k1*(d1 - rcut))))) / 2.0;
-				dudd1_II = k1*L1*(-pow(sech(k1*(d1 - rcut)), 2.0) + pow(sech(k1*(-d1 + r_II)), 2.0) -
-					k1*(rcut - r_II)*pow(sech(k1*(-d1 + rcut)), 4.0)*(k1*(rcut - r_II)*(-2.0 + cosh(2.0 * k1*(-d1 + rcut))) + sinh(2.0 * k1*(-d1 + rcut))));
-				dudL2_II = -tanh(k2*(d2 - rcut)) + k2*(rcut - r_II)*pow(sech(k2*(-d2 + rcut)), 2.0)*(-1.0 + k2*(rcut - r_II)*tanh(k2*(d2 - rcut))) - tanh(k2*(-d2 + r_II));
-				dudk2_II = (L2*(6.0 * pow(k2, 2.0)*(d2 - rcut)*pow(rcut - r_II, 2.0)*pow(sech(k2*(d2 - rcut)), 4.0) + 2.0 * (d2 - r_II)*pow(sech(k2*(-d2 + r_II)), 2.0) +
-					2.0 * pow(sech(k2*(d2 - rcut)), 2.0)*(-(d2*(1.0 + 2.0 * pow(k2, 2.0)*pow(rcut - r_II, 2.0))) + 2.0 * pow(k2, 2.0)*rcut*pow(rcut - r_II, 2.0) + r_II +
-					2.0 * k2*(d2 - r_II)*(rcut - r_II)*tanh(k2*(d2 - rcut))))) / 2.0;
-				dudd2_II = k2*L2*(-pow(sech(k2*(d2 - rcut)), 2.0) + pow(sech(k2*(-d2 + r_II)), 2.0) -
-					k2*(rcut - r_II)*pow(sech(k2*(-d2 + rcut)), 4.0)*(k2*(rcut - r_II)*(-2.0 + cosh(2.0 * k2*(-d2 + rcut))) + sinh(2.0 * k2*(-d2 + rcut))));
-			}
-			else
-			{
-				dudA_II = 0.0;
-				dudn_II = 0.0;
-				dudL1_II = 0.0;
-				dudk1_II = 0.0;
-				dudd1_II = 0.0;
-				dudL2_II = 0.0;
-				dudk2_II = 0.0;
-				dudd2_II = 0.0;
-				//dudrcut_II = 0.0;
-			}
-
-
-			
-			//actually do the damn integral
-			if (isfinite(dudA_I) && isfinite(dudn_I))
-			{
-				grad_A = grad_A + 0.5*((r_I*r_I*dudA_I*(gr_I - gr_tgt_I)) + (r_II*r_II*dudA_II*(gr_II - gr_tgt_II)))*gromacs_settings.delta_r;
-				grad_n = grad_n + 0.5*((r_I*r_I*dudn_I*(gr_I - gr_tgt_I)) + (r_II*r_II*dudn_II*(gr_II - gr_tgt_II)))*gromacs_settings.delta_r;
-				grad_L1 = grad_L1 + 0.5*((r_I*r_I*dudL1_I*(gr_I - gr_tgt_I)) + (r_II*r_II*dudL1_II*(gr_II - gr_tgt_II)))*gromacs_settings.delta_r;
-				grad_k1 = grad_k1 + 0.5*((r_I*r_I*dudk1_I*(gr_I - gr_tgt_I)) + (r_II*r_II*dudk1_II*(gr_II - gr_tgt_II)))*gromacs_settings.delta_r;
-				grad_d1 = grad_d1 + 0.5*((r_I*r_I*dudd1_I*(gr_I - gr_tgt_I)) + (r_II*r_II*dudd1_II*(gr_II - gr_tgt_II)))*gromacs_settings.delta_r;
-				grad_L2 = grad_L2 + 0.5*((r_I*r_I*dudL2_I*(gr_I - gr_tgt_I)) + (r_II*r_II*dudL2_II*(gr_II - gr_tgt_II)))*gromacs_settings.delta_r;
-				grad_k2 = grad_k2 + 0.5*((r_I*r_I*dudk2_I*(gr_I - gr_tgt_I)) + (r_II*r_II*dudk2_II*(gr_II - gr_tgt_II)))*gromacs_settings.delta_r;
-				grad_d2 = grad_d2 + 0.5*((r_I*r_I*dudd2_I*(gr_I - gr_tgt_I)) + (r_II*r_II*dudd2_II*(gr_II - gr_tgt_II)))*gromacs_settings.delta_r;
-				//grad_rcut = grad_rcut + 0.5*((r_I*r_I*dudrcut_I*(gr_I - gr_tgt_I)) + (r_II*r_II*dudrcut_II*(gr_II - gr_tgt_II)))*gromacs_settings.delta_r;
-			}
-
-
-
-
-			//write ot file for testing//////////////////////////////////////
-			//dudA_stream << r_I << "," << (r_I*r_I*dudA_I*(gr_I - gr_tgt_I)) << "," << gr_I << "," << gr_tgt_I << endl;
-			//dudn_stream << r_I << "," << (r_I*r_I*dudn_I*(gr_I - gr_tgt_I)) << "," << gr_I << "," << gr_tgt_I << endl;
-			//dudL1_stream << r_I << "," << (r_I*r_I*dudL1_I*(gr_I - gr_tgt_I)) << "," << gr_I << "," << gr_tgt_I << endl;
-			//dudk1_stream << r_I << "," << (r_I*r_I*dudk1_I*(gr_I - gr_tgt_I)) << "," << gr_I << "," << gr_tgt_I << endl;
-			//dudd1_stream << r_I << "," << (r_I*r_I*dudd1_I*(gr_I - gr_tgt_I)) << "," << gr_I << "," << gr_tgt_I << endl;
-			//dudL2_stream << r_I << "," << (r_I*r_I*dudL2_I*(gr_I - gr_tgt_I)) << "," << gr_I << "," << gr_tgt_I << endl;
-			//dudk2_stream << r_I << "," << (r_I*r_I*dudk2_I*(gr_I - gr_tgt_I)) << "," << gr_I << "," << gr_tgt_I << endl;
-			//dudd2_stream << r_I << "," << (r_I*r_I*dudd2_I*(gr_I - gr_tgt_I)) << "," << gr_I << "," << gr_tgt_I << endl;
-			/////////////////////////////////////////////////////////////////
-
-
-
-
-
-
-
-			gr_convergence = gr_convergence + 0.5*((r_I*r_I*(gr_I - gr_tgt_I)*(gr_I - gr_tgt_I)) + (r_II*r_II*(gr_II - gr_tgt_II)*(gr_II - gr_tgt_II)))*gromacs_settings.delta_r;
+			*(grad_U_step + i) = 0.0;
 		}
+
+		//INTEGRAL FOR FINDING THE GRADIENT TOWARDS LARGER PROBABILITY
+		//LOOP OVER THE PARAMETERS TO CALCULATE THE DERIVATIVES AND INTEGRATE
+		//loop for selecting which parameter to perturb
+		gr_convergence = 0.0; 
+		delta_U_step = 0.01; //just fixed for now to test
+		for (i = 0; i < num_parameters; i++)
+		{
+			//make the splines for derivative calculations
+			*(U_step + i) = *(U_step + i) - delta_U_step; //move to the left by one unit
+			Spline_L.Make_Akima_Wrapper(R, U_step);
+			*(U_step + i) = *(U_step + i) + 2.0 * delta_U_step; //to the right by one unit (requires two steps)
+			Spline_R.Make_Akima_Wrapper(R, U_step);
+			*(U_step + i) = *(U_step + i) - delta_U_step; //move back to original location
+
+			//now compute the derivative and update
+			for (k = 0; k < num_lines_gr - 1; k++)
+			{
+				//using trapezoids so need  two values
+				r_I = (double)k*gromacs_settings.delta_r;
+				r_II = (double)(k + 1)*gromacs_settings.delta_r;
+
+				//fill in rdf data
+				gr_I = *(gr_data.array_1 + k);
+				gr_II = *(gr_data.array_1 + k + 1);
+				gr_tgt_I = *(gr_data.array_2 + k);
+				gr_tgt_II = *(gr_data.array_2 + k + 1);
+
+				//calculate the derivatives
+				dUdstep_I = (Spline_R.getValue(r_I) - Spline_L.getValue(r_I)) / delta_U_step;
+				dUdstep_II = (Spline_R.getValue(r_II) - Spline_L.getValue(r_II)) / delta_U_step;
+
+				//actually do the damn integral
+				if (isfinite(dudstep_I) && isfinite(dudstep_II))
+				{
+					*(grad_U_step + i) = *(grad_U_step + i) + 0.5*((r_I*r_I*dUdstep_I*(gr_I - gr_tgt_I)) + (r_II*r_II*dUdstep_II*(gr_II - gr_tgt_II)))*gromacs_settings.delta_r;
+				}
+
+				//calculate the gr_convergence (only once)
+				if (i == 0)
+				{
+					gr_convergence = gr_convergence + 0.5*((r_I*r_I*(gr_I - gr_tgt_I)*(gr_I - gr_tgt_I)) + (r_II*r_II*(gr_II - gr_tgt_II)*(gr_II - gr_tgt_II)))*gromacs_settings.delta_r;
+				}
+			}
+		}
+
 		//prepare to pass back the convergence criterion
 		*(gr_convergence_pointer) = gr_convergence;
 
-		//calculate unscaled gradient
-		grad_magnitude = sqrt((grad_A*grad_A) + (grad_n*grad_n) 
-			+ (grad_L1*grad_L1) + (grad_k1*grad_k1) + (grad_d1*grad_d1)
-			+ (grad_L2*grad_L2) + (grad_k2*grad_k2) + (grad_d2*grad_d2)
-			/*+ (grad_rcut*grad_rcut)*/);
+		//calculate unscaled gradient and scale the gradient back by input value
+		grad_magnitude = 0.0;
+		for (i = 0; i < num_parameters; i++)
+		{
+			grad_magnitude = grad_magnitude + (*(grad_U_step + i))*(*(grad_U_step + i)); //add square for this parameter
+			*(grad_U_step + i) = gromacs_settings.gradient_scale*(*(grad_U_step + i)); //scale this parameters gradient
+		}
+		grad_magnitude = sqrt(grad_magnitude); //get the square root of the total gradient
 		*unscaled_gradient_pointer = grad_magnitude;
 
-		//scale the gradient
-		grad_A = gromacs_settings.gradient_scale*grad_A;
-		grad_n = gromacs_settings.gradient_scale*grad_n;
-		grad_L1 = gromacs_settings.gradient_scale*grad_L1;
-		grad_k1 = gromacs_settings.gradient_scale*grad_k1;
-		grad_d1 = gromacs_settings.gradient_scale*grad_d1;
-		grad_L2 = gromacs_settings.gradient_scale*grad_L2;
-		grad_k2 = gromacs_settings.gradient_scale*grad_k2;
-		grad_d2 = gromacs_settings.gradient_scale*grad_d2;
-		//grad_rcut = gromacs_settings.gradient_scale*grad_rcut;
-
-		//add in the momentum contribution first and then reset the step for passing back via the pointer
-		step_A = grad_A + gromacs_settings.momentum_scale * (*(d_potential_parameters + 0)); *(d_potential_parameters + 0) = step_A;
-		step_n = grad_n + gromacs_settings.momentum_scale * (*(d_potential_parameters + 1)); *(d_potential_parameters + 1) = step_n;
-		step_L1 = grad_L1 + gromacs_settings.momentum_scale * (*(d_potential_parameters + 2)); *(d_potential_parameters + 2) = step_L1;
-		step_k1 = grad_k1 + gromacs_settings.momentum_scale * (*(d_potential_parameters + 3)); *(d_potential_parameters + 3) = step_k1;
-		step_d1 = grad_d1 + gromacs_settings.momentum_scale * (*(d_potential_parameters + 4)); *(d_potential_parameters + 4) = step_d1;
-		step_L2 = grad_L2 + gromacs_settings.momentum_scale * (*(d_potential_parameters + 5)); *(d_potential_parameters + 5) = step_L2;
-		step_k2 = grad_k2 + gromacs_settings.momentum_scale * (*(d_potential_parameters + 6)); *(d_potential_parameters + 6) = step_k2;
-		step_d2 = grad_d2 + gromacs_settings.momentum_scale * (*(d_potential_parameters + 7)); *(d_potential_parameters + 7) = step_d2;
-		//step_rcut = grad_rcut + gromacs_settings.momentum_scale * (*(d_potential_parameters + 8)); *(d_potential_parameters + 8) = step_rcut;
+		//MOMENTUM DISABLED FOR THIS POTENTIAL
+		//TO BE UPDATED AFTER TESTING
 
 		
 		//any constraints desired...
-		
-
-		//update the parameters and pass back
-		//double A_min = 2.0;
-		//double n_min = 2.0;
-		//double L1_min = 2.0;
-		//double k1_min = 2.0;
-		//double d1_min = 
 
 
 
-
-		//if (A + step_A >= 2.0)
-		//	A = A + step_A; 
-		//else
-			
-		A = A + step_A;	*(potential_parameters + 0) = A;
-		n = n + step_n; *(potential_parameters + 1) = n;
-		L1 = L1 + step_L1; *(potential_parameters + 2) = L1;
-		k1 = k1 + step_k1; *(potential_parameters + 3) = k1;
-		d1 = d1 + step_d1; *(potential_parameters + 4) = d1;
-		L2 = L2 + step_L2; *(potential_parameters + 5) = L2;
-		k2 = k2 + step_k2; *(potential_parameters + 6) = k2;
-		d2 = d2 + step_d2; *(potential_parameters + 7) = d2;
-
+		//UPDATE THE PARAMETERS AND FORMAT FOR DATA FILE BY STORING IN POTENTIAL_PARAMETERS
+		//note: the new spline calculation happens outside this region
+		for (i = 0; i < num_parameters; i++)
+		{
+			*(U_step + i) = *(U_step + i) + *(grad_U_step + i);
+		}
+		format_data(/*output*/ potential_parameters,
+			/*input*/num_params, R, U_step, State);
 	}
+
+	//MAKE THE SPLINE USING PARAMETERS THAT MAY OR MAY NOT HAVE BEEN UPDATED (IF STEP 0 NO)
+	Spline.Make_Akima_Wrapper(R, U_step);
 
 
 	/////////////////////////////////////////////////////////////////////////////////////////////
@@ -296,58 +187,18 @@ array_pair_and_num_elements potential_data::optimize_crystal_potential(int last_
 	{
 		r = (double)i*gromacs_settings.delta_r;
 
-		if (r <= rcut)
-		{
-			P = -(A*n*(1.0 + n)*pow(rcut, -2.0 - n)) / 2.0 - pow(k1, 2.0)*L1*pow(sech(k1*(-d1 + rcut)), 2.0)*tanh(k1*(-d1 + rcut)) -
-				pow(k2, 2.0)*L2*pow(sech(k2*(-d2 + rcut)), 2.0)*tanh(k2*(-d2 + rcut));
-			Q = pow(rcut, -1.0 - n)*(A*n*(2.0 + n) + pow(rcut, 1.0 + n)*(k1*L1*pow(sech(k1*(-d1 + rcut)), 2.0)*(1.0 + 2.0 * k1*rcut*tanh(k1*(-d1 + rcut))) +
-				k2*L2*pow(sech(k2*(-d2 + rcut)), 2.0)*(1.0 + 2.0 * k2*rcut*tanh(k2*(-d2 + rcut)))));
-			R = (-(A*(1.0 + n)*(2.0 + n)) - 2.0 * pow(rcut, n)*(L1 + L2 + L1*tanh(k1*(d1 - rcut)) + L2*tanh(k2*(d2 - rcut)) +
-				k1*L1*rcut*pow(sech(k1*(-d1 + rcut)), 2.0)*(1.0 + k1*rcut*tanh(k1*(-d1 + rcut))) +
-				k2*L2*rcut*pow(sech(k2*(-d2 + rcut)), 2.0)*(1.0 + k2*rcut*tanh(k2*(-d2 + rcut))))) / (2.0*pow(rcut, n));
-			*(table_u + i) = A / pow(r, n) + L1*(1.0 - tanh(k1*(-d1 + r))) + L2*(1.0 - tanh(k2*(-d2 + r))) + P*r*r + Q*r + R;
+		*(table_u + i) = Spline.getValue(r);
 
-			if (!isfinite(*(table_u + i)) || *(table_u + i) > 1.0e5)
-			{
-				*(table_u + i) = 1.0e5;
-			}
-		}
-		else
+		if (!isfinite(*(table_u + i)) || *(table_u + i) > 1.0e5)
 		{
-			*(table_u + i) = 0.0;
+			*(table_u + i) = 1.0e5;
 		}
 	}
 
 	//FIND THE CUTOFF
-		//for this potential we just have it
-	*(md_cutoff_pointer) = rcut;
+		//for this potential we just have it and it is the last R value
+	*(md_cutoff_pointer) = *(R + num_parameters - 1);
 
-	//FIND THE CUTOFF
-	/*md_cutoff_index = 0; //location in array of the last finite point (cutoff)
-	u_at_cutoff = 0.0; //magnitude at cutoff to shift potential by
-	for (i = num_table_entries - 2; i > 0; i--)
-	{
-		r = (double)i*gromacs_settings.delta_r;
-		dudr = (*(table_u + i + 1) - *(table_u + i - 1)) / (2.0*gromacs_settings.delta_r);
-
-		if (fabs(dudr) > gromacs_settings.md_cutoff_magnitude)
-		{
-			md_cutoff_index = i;
-			u_at_cutoff = *(table_u + md_cutoff_index);
-			*(md_cutoff_pointer) = r;
-			break;
-		}
-	}*/
-
-	//EMPLOY THE CUTOFF
-	/*for (i = 0; i <= md_cutoff_index; i++)
-	{
-		*(table_u + i) = *(table_u + i) - u_at_cutoff;
-	}
-	for (i = md_cutoff_index + 1; i < num_table_entries; i++)
-	{
-		*(table_u + i) = 0.0;
-	}*/
 
 	//MANUALLY FILL IN THE FIRST AND LAST FORCE ELEMENTS AND USE FINITE DIFFERENCE
 	*(table_du + 0) = 0.0;
@@ -390,12 +241,36 @@ array_pair_and_num_elements potential_data::optimize_crystal_potential(int last_
 	return table_data;
 }
 
-//ACCEPTS ADDRESS OF SPLINE AND RETURNS THE NUMERICAL DERIVATIVE
-double calculate_df_da(tk::spline *s, int num_params, double da)
+//ACCEPTS ADDRESS OF POTENTIAL PARAMETERS AND EXTRACT THE INDIVIDUAL COMPONENTS
+void extract_data(/*input*/ double *potential_parameters, int num_parameters, 
+				/*output*/ double *R, double *U_step, int *State)
 {
-	
+	//load in the points until the last r-space entry according the the input format
+	for (int i = 0; i < num_parameters - 1; i++)
+	{
+		*(R + i) = *(potential_parameters + 0 + 3 * i);
+		*(U_step + i) = *(potential_parameters + 1 + 3 * i);
+		*(State + i) = *(potential_parameters + 2 + 3 * i);
+	}
 
+	//load in the last r-space entry manually since technically this is not associated with a step parameter
+	*(R + num_parameters - 1) = *(potential_parameters + 0 + 3 * (num_parameters - 1));
+	*(U_step + num_parameters - 1) = 0.0;
+	*(State + num_parameters - 1) = 0;
+}
 
+//THIS DOES THE INVERSE OF THE ABOVE FUNCTION AND PREPARES THE NEWLY UPDATE PARAMETERS FOR FILE WRITING
+void format_data(/*output*/ double *potential_parameters,
+	/*input*/int num_parameters, double *R, double *U_step, int *State)
+{
+	//set the first points until the last r-space entry according the the input format
+	for (int i = 0; i < num_parameters - 1; i++)
+	{
+		*(potential_parameters + 0 + 3 * i) = *(R + i);
+		*(potential_parameters + 1 + 3 * i) = *(U_step + i);
+		*(potential_parameters + 2 + 3 * i) = *(State + i);
+	}
 
-	return df_da;
+	//set the last r-space entry manually since technically this is not associated with a step parameter
+	*(potential_parameters + 0 + 3 * (num_parameters - 1)) = *(R + num_parameters - 1);
 }
