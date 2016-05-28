@@ -22,20 +22,20 @@ bool potential_data::set_potential(int potential_type_input)
 
 	if (potential_type == 0) //ideal_cluster_potential
 	{
-		num_parameters = 7;
-		num_d_parameters = 4;
+		num_parameters = 7; num_parameters_rows = num_parameters;
+		num_d_parameters = 4; num_d_parameters_rows = num_d_parameters;
 		return true;
 	}
 	else if (potential_type == 1) //ramp_salr_cluster_potential
 	{
-		num_parameters = 6;
-		num_d_parameters = 4;
+		num_parameters = 6; num_parameters_rows = num_parameters;
+		num_d_parameters = 4; num_d_parameters_rows = num_d_parameters;
 		return true;
 	}
 	else if (potential_type == 2) //crystal_potential
 	{
-		num_parameters = 9;
-		num_d_parameters = 9;
+		num_parameters = 9; num_parameters_rows = num_parameters;
+		num_d_parameters = 9; num_d_parameters_rows = num_d_parameters;
 		return true;
 	}
 	else if (potential_type == -1) //akima splined potential (for this I read in choice from a file)
@@ -63,6 +63,9 @@ bool potential_data::set_potential(int potential_type_input)
 			exit(EXIT_FAILURE);
 		}
 		spline_filestream.close();
+
+		num_parameters_rows = 3 * (num_parameters - 1) + 1;
+		num_d_parameters_rows = 3 * (num_d_parameters - 1) + 1;
 	}
 	else
 	{
@@ -76,11 +79,11 @@ bool potential_data::set_potential(int potential_type_input)
 //FUNCTIONS TO FETCH PRIVATE PARAMETERS
 int potential_data::get_num_parameters()
 {
-	return num_parameters;
+	return num_parameters_rows;
 }
 int potential_data::get_num_d_parameters()
 {
-	return num_d_parameters;
+	return num_d_parameters_rows;
 }
 
 //WRAPPER FOR THE VARIOUS POTENTIALS
@@ -115,9 +118,13 @@ array_pair_and_num_elements potential_data::optimize_potential(int last_step, ar
 	}
 	else if (potential_type == -1) //akima splined potential
 	{
-		log_filestream << "akima splined potential not coded yet -> killing!" << endl;
-		log_filestream << "///////////////////END RE CODE/////////////////////" << endl << endl;
-		exit(EXIT_FAILURE);
+		return optimize_splined_potential(last_step, gr_data,
+			potential_parameters, d_potential_parameters, gromacs_settings,
+			md_cutoff_pointer, unscaled_gradient_pointer, gr_convergence_pointer);
+
+		//log_filestream << "akima splined potential not coded yet -> killing!" << endl;
+		//log_filestream << "///////////////////END RE CODE/////////////////////" << endl << endl;
+		//exit(EXIT_FAILURE);
 	}
 
 	//NEW POTENTIALS...

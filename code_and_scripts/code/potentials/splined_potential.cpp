@@ -20,7 +20,7 @@ void format_data(/*output*/ double *potential_parameters,
 
 
 //ACTUAL POTENTIAL OPTIMIZER FUNCTION
-array_pair_and_num_elements potential_data::optimize_crystal_potential(int last_step, array_pair_and_num_elements gr_data,
+array_pair_and_num_elements potential_data::optimize_splined_potential(int last_step, array_pair_and_num_elements gr_data,
 	double *potential_parameters, double *d_potential_parameters, gromacs_settings_class gromacs_settings,
 	double *md_cutoff_pointer, double *unscaled_gradient_pointer, double *gr_convergence_pointer)
 {
@@ -39,6 +39,9 @@ array_pair_and_num_elements potential_data::optimize_crystal_potential(int last_
 	U_step = (double*)malloc(sizeof(double) * num_parameters); //for mental simplicity the last element exists but is just ignored
 	grad_U_step = (double*)malloc(sizeof(double) * num_parameters); //stores the various gradients
 	State = (int*)malloc(sizeof(int) * num_parameters); //for mental simplicity the last element exists but is just ignored
+
+	//SOME RELEVANT OPTIMIZATION PARAMETERS
+	double delta_U_step, dUdstep_I, dUdstep_II;
 
 	//GENERIC DISTANCE VARIABLE
 	double r;
@@ -78,6 +81,8 @@ array_pair_and_num_elements potential_data::optimize_crystal_potential(int last_
 	///////////////////////////////////UPDATING PARAMETERS///////////////////////////////////////
 	/////////////////////////////////////////////////////////////////////////////////////////////
 
+	cout << "check 1" << endl; //////CHECK!!!!!!!!!
+
 	//EXTRACT (FORMAT) THE DATA FOR USE IN THE AKIMA SPLINING
 	extract_data(/*input*/ potential_parameters, num_parameters, /*output*/ R, U_step, State);
 
@@ -100,40 +105,43 @@ array_pair_and_num_elements potential_data::optimize_crystal_potential(int last_
 		delta_U_step = 0.01; //just fixed for now to test
 		for (i = 0; i < num_parameters; i++)
 		{
-			//make the splines for derivative calculations
-			*(U_step + i) = *(U_step + i) - delta_U_step; //move to the left by one unit
-			Spline_L.Make_Akima_Wrapper(R, U_step);
-			*(U_step + i) = *(U_step + i) + 2.0 * delta_U_step; //to the right by one unit (requires two steps)
-			Spline_R.Make_Akima_Wrapper(R, U_step);
-			*(U_step + i) = *(U_step + i) - delta_U_step; //move back to original location
-
-			//now compute the derivative and update
-			for (k = 0; k < num_lines_gr - 1; k++)
+			if (*(State + i) == 1)
 			{
-				//using trapezoids so need  two values
-				r_I = (double)k*gromacs_settings.delta_r;
-				r_II = (double)(k + 1)*gromacs_settings.delta_r;
+				//make the splines for derivative calculations
+				*(U_step + i) = *(U_step + i) - delta_U_step; //move to the left by one unit
+				Spline_L.Make_Akima_Wrapper(R, U_step);
+				*(U_step + i) = *(U_step + i) + 2.0 * delta_U_step; //to the right by one unit (requires two steps)
+				Spline_R.Make_Akima_Wrapper(R, U_step);
+				*(U_step + i) = *(U_step + i) - delta_U_step; //move back to original location
 
-				//fill in rdf data
-				gr_I = *(gr_data.array_1 + k);
-				gr_II = *(gr_data.array_1 + k + 1);
-				gr_tgt_I = *(gr_data.array_2 + k);
-				gr_tgt_II = *(gr_data.array_2 + k + 1);
-
-				//calculate the derivatives
-				dUdstep_I = (Spline_R.getValue(r_I) - Spline_L.getValue(r_I)) / delta_U_step;
-				dUdstep_II = (Spline_R.getValue(r_II) - Spline_L.getValue(r_II)) / delta_U_step;
-
-				//actually do the damn integral
-				if (isfinite(dudstep_I) && isfinite(dudstep_II))
+				//now compute the derivative and update
+				for (k = 0; k < num_lines_gr - 1; k++)
 				{
-					*(grad_U_step + i) = *(grad_U_step + i) + 0.5*((r_I*r_I*dUdstep_I*(gr_I - gr_tgt_I)) + (r_II*r_II*dUdstep_II*(gr_II - gr_tgt_II)))*gromacs_settings.delta_r;
-				}
+					//using trapezoids so need  two values
+					r_I = (double)k*gromacs_settings.delta_r;
+					r_II = (double)(k + 1)*gromacs_settings.delta_r;
 
-				//calculate the gr_convergence (only once)
-				if (i == 0)
-				{
-					gr_convergence = gr_convergence + 0.5*((r_I*r_I*(gr_I - gr_tgt_I)*(gr_I - gr_tgt_I)) + (r_II*r_II*(gr_II - gr_tgt_II)*(gr_II - gr_tgt_II)))*gromacs_settings.delta_r;
+					//fill in rdf data
+					gr_I = *(gr_data.array_1 + k);
+					gr_II = *(gr_data.array_1 + k + 1);
+					gr_tgt_I = *(gr_data.array_2 + k);
+					gr_tgt_II = *(gr_data.array_2 + k + 1);
+
+					//calculate the derivatives
+					dUdstep_I = (Spline_R.getValue(r_I) - Spline_L.getValue(r_I)) / delta_U_step;
+					dUdstep_II = (Spline_R.getValue(r_II) - Spline_L.getValue(r_II)) / delta_U_step;
+
+					//actually do the damn integral
+					if (isfinite(dUdstep_I) && isfinite(dUdstep_II))
+					{
+						*(grad_U_step + i) = *(grad_U_step + i) + 0.5*((r_I*r_I*dUdstep_I*(gr_I - gr_tgt_I)) + (r_II*r_II*dUdstep_II*(gr_II - gr_tgt_II)))*gromacs_settings.delta_r;
+					}
+
+					//calculate the gr_convergence (only once)
+					if (i == 0)
+					{
+						gr_convergence = gr_convergence + 0.5*((r_I*r_I*(gr_I - gr_tgt_I)*(gr_I - gr_tgt_I)) + (r_II*r_II*(gr_II - gr_tgt_II)*(gr_II - gr_tgt_II)))*gromacs_settings.delta_r;
+					}
 				}
 			}
 		}
@@ -166,11 +174,15 @@ array_pair_and_num_elements potential_data::optimize_crystal_potential(int last_
 			*(U_step + i) = *(U_step + i) + *(grad_U_step + i);
 		}
 		format_data(/*output*/ potential_parameters,
-			/*input*/num_params, R, U_step, State);
+			/*input*/num_parameters, R, U_step, State);
 	}
+
+	cout << "check 2" << endl; //////CHECK!!!!!!!!!
 
 	//MAKE THE SPLINE USING PARAMETERS THAT MAY OR MAY NOT HAVE BEEN UPDATED (IF STEP 0 NO)
 	Spline.Make_Akima_Wrapper(R, U_step);
+
+	cout << "check 3" << endl; //////CHECK!!!!!!!!!
 
 
 	/////////////////////////////////////////////////////////////////////////////////////////////
@@ -195,6 +207,8 @@ array_pair_and_num_elements potential_data::optimize_crystal_potential(int last_
 		}
 	}
 
+	cout << "check 4" << endl; //////CHECK!!!!!!!!!
+
 	//FIND THE CUTOFF
 		//for this potential we just have it and it is the last R value
 	*(md_cutoff_pointer) = *(R + num_parameters - 1);
@@ -208,10 +222,14 @@ array_pair_and_num_elements potential_data::optimize_crystal_potential(int last_
 		*(table_du + i) = -1.0*(*(table_u + i + 1) - *(table_u + i - 1)) / (2.0*gromacs_settings.delta_r);
 	}
 
+	cout << "check 5" << endl; //////CHECK!!!!!!!!!
+
 	//ASSIGN RETURN DATA
 	table_data.array_1 = table_u;
 	table_data.array_2 = table_du;
 	table_data.num_elements = num_table_entries;
+
+	cout << "check 6" << endl; //////CHECK!!!!!!!!!
 
 	/////////////////////////////////////////////////////////////////////////////////////////////
 	///////////////////////////////////////FINAL STUFF///////////////////////////////////////////

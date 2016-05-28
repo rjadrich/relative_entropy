@@ -20,6 +20,10 @@
 
 #define ABS(x) ((x) < 0) ? -(x) : (x)
 
+#include <iostream>
+
+using namespace std;
+
 namespace Maths
 {
 
@@ -72,7 +76,7 @@ void Make_Akima(double *x, double *y)
 void Make_Akima_Wrapper(double *x, double *y_step)
 {
 	//temporary array
-	double y[m_n];
+	double *y = new double[m_n];
 
 	//fill array based on steps
 	y[m_n - 1] = 0.0;
@@ -80,11 +84,17 @@ void Make_Akima_Wrapper(double *x, double *y_step)
 		y[i] = y[i + 1] + y_step[i];
 	}
 
+	cout << "in akima 1a" << endl;
+
 	//call normal akima function
 	Make_Akima(x, y);
 
+	cout << "in akima 1b" << endl;
+
 	//clear memory for temp array
-	delete[] y;
+	delete [] y;
+
+	cout << "in akima 1c" << endl;
 }
 
 
@@ -132,14 +142,14 @@ double *m_x, *m_y, *m_z, *m_t;
 
 //! A static function implementing the Akima Class for one off calculations
 
-double Akima_once(int N, double *x, double *y, double a )
+/*double Akima_once(int N, double *x, double *y, double a )
 {
   // This function is created to enable an Instant Calculator on CodeCogs. 
   // You probably shouldn't be using this function otherwise. 
 
    Maths::Interpolation:: Akima A(N, x, y);
    return A.getValue(a);
-}
+}*/
 
 }
 

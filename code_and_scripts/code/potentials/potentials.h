@@ -22,6 +22,8 @@ private:
 	int potential_type;
 	int num_parameters;
 	int num_d_parameters;
+	int num_parameters_rows;
+	int num_d_parameters_rows;
 
 	///////////////   ||   /////////////////////////   ||   ///////////////
 	///////////////   ||   /////////////////////////   ||   ///////////////
@@ -41,6 +43,11 @@ private:
 
 	//from crystal_potential.cpp
 	array_pair_and_num_elements optimize_crystal_potential(int last_step, array_pair_and_num_elements gr_data,
+		double *potential_parameters, double *d_potential_parameters, gromacs_settings_class gromacs_settings,
+		double *md_cutoff_pointer, double *unscaled_gradient_pointer, double *gr_convergence_pointer);
+
+	//from crystal_potential.cpp
+	array_pair_and_num_elements optimize_splined_potential(int last_step, array_pair_and_num_elements gr_data,
 		double *potential_parameters, double *d_potential_parameters, gromacs_settings_class gromacs_settings,
 		double *md_cutoff_pointer, double *unscaled_gradient_pointer, double *gr_convergence_pointer);
 
