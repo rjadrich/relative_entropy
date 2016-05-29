@@ -17,6 +17,7 @@ void extract_data(/*input*/ double *potential_parameters, int num_parameters,
 	/*output*/ double *R, double *U_step, int *State);
 void format_data(/*output*/ double *potential_parameters,
 	/*input*/int num_parameters, double *R, double *U_step, int *State);
+double monotonicity_constraint(double U_step_new);
 
 
 //ACTUAL POTENTIAL OPTIMIZER FUNCTION
@@ -81,7 +82,7 @@ array_pair_and_num_elements potential_data::optimize_splined_potential(int last_
 	///////////////////////////////////UPDATING PARAMETERS///////////////////////////////////////
 	/////////////////////////////////////////////////////////////////////////////////////////////
 
-	cout << "check 1" << endl; //////CHECK!!!!!!!!!
+	
 
 	//EXTRACT (FORMAT) THE DATA FOR USE IN THE AKIMA SPLINING
 	extract_data(/*input*/ potential_parameters, num_parameters, /*output*/ R, U_step, State);
@@ -171,18 +172,19 @@ array_pair_and_num_elements potential_data::optimize_splined_potential(int last_
 		//note: the new spline calculation happens outside this region
 		for (i = 0; i < num_parameters; i++)
 		{
-			*(U_step + i) = *(U_step + i) + *(grad_U_step + i);
+			//*(U_step + i) = *(U_step + i) + *(grad_U_step + i);
+			*(U_step + i) = monotonicity_constraint(*(U_step + i) + *(grad_U_step + i));
 		}
 		format_data(/*output*/ potential_parameters,
 			/*input*/num_parameters, R, U_step, State);
 	}
 
-	cout << "check 2" << endl; //////CHECK!!!!!!!!!
+	
 
 	//MAKE THE SPLINE USING PARAMETERS THAT MAY OR MAY NOT HAVE BEEN UPDATED (IF STEP 0 NO)
 	Spline.Make_Akima_Wrapper(R, U_step);
 
-	cout << "check 3" << endl; //////CHECK!!!!!!!!!
+	
 
 
 	/////////////////////////////////////////////////////////////////////////////////////////////
@@ -207,7 +209,7 @@ array_pair_and_num_elements potential_data::optimize_splined_potential(int last_
 		}
 	}
 
-	cout << "check 4" << endl; //////CHECK!!!!!!!!!
+	
 
 	//FIND THE CUTOFF
 		//for this potential we just have it and it is the last R value
@@ -222,14 +224,14 @@ array_pair_and_num_elements potential_data::optimize_splined_potential(int last_
 		*(table_du + i) = -1.0*(*(table_u + i + 1) - *(table_u + i - 1)) / (2.0*gromacs_settings.delta_r);
 	}
 
-	cout << "check 5" << endl; //////CHECK!!!!!!!!!
+	
 
 	//ASSIGN RETURN DATA
 	table_data.array_1 = table_u;
 	table_data.array_2 = table_du;
 	table_data.num_elements = num_table_entries;
 
-	cout << "check 6" << endl; //////CHECK!!!!!!!!!
+	
 
 	/////////////////////////////////////////////////////////////////////////////////////////////
 	///////////////////////////////////////FINAL STUFF///////////////////////////////////////////
@@ -291,4 +293,12 @@ void format_data(/*output*/ double *potential_parameters,
 
 	//set the last r-space entry manually since technically this is not associated with a step parameter
 	*(potential_parameters + 0 + 3 * (num_parameters - 1)) = *(R + num_parameters - 1);
+}
+
+double monotonicity_constraint(double U_step_new)
+{
+	if (U_step_new < 0.0)
+		return 0.0;
+	else
+		return U_step_new;
 }

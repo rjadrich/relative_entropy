@@ -84,17 +84,11 @@ void Make_Akima_Wrapper(double *x, double *y_step)
 		y[i] = y[i + 1] + y_step[i];
 	}
 
-	cout << "in akima 1a" << endl;
-
 	//call normal akima function
 	Make_Akima(x, y);
 
-	cout << "in akima 1b" << endl;
-
 	//clear memory for temp array
 	delete [] y;
-
-	cout << "in akima 1c" << endl;
 }
 
 
