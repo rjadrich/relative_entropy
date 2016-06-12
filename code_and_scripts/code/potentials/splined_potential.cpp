@@ -18,6 +18,7 @@ void extract_data(/*input*/ double *potential_parameters, int num_parameters,
 void format_data(/*output*/ double *potential_parameters,
 	/*input*/int num_parameters, double *R, double *U_step, int *State);
 double monotonicity_constraint(double U_step_new);
+double amount_before_monotonicity_constraint(double U_step, double grad_U_step);
 
 
 //ACTUAL POTENTIAL OPTIMIZER FUNCTION
@@ -56,7 +57,9 @@ array_pair_and_num_elements potential_data::optimize_splined_potential(int last_
 	int num_lines_gr; //again, better than using gr_data directly
 	//double grad_rcut;
 		/////////////////////////////////////////////////////////////////
+	double grad_U_step_adjusted;
 	double grad_magnitude;
+	double r_weight_I, r_weight_II;
 	double r_I, r_II;
 	double gr_I, gr_II;
 	double gr_tgt_I, gr_tgt_II;
@@ -121,6 +124,9 @@ array_pair_and_num_elements potential_data::optimize_splined_potential(int last_
 					//using trapezoids so need  two values
 					r_I = (double)k*gromacs_settings.delta_r;
 					r_II = (double)(k + 1)*gromacs_settings.delta_r;
+					//convert to spherical weights based on dimensionality
+					r_weight_I = pow(r_I, gromacs_settings.dimensions - 1);
+					r_weight_II = pow(r_II, gromacs_settings.dimensions - 1);
 
 					//fill in rdf data
 					gr_I = *(gr_data.array_1 + k);
@@ -135,13 +141,13 @@ array_pair_and_num_elements potential_data::optimize_splined_potential(int last_
 					//actually do the damn integral
 					if (isfinite(dUdstep_I) && isfinite(dUdstep_II))
 					{
-						*(grad_U_step + i) = *(grad_U_step + i) + 0.5*((r_I*r_I*dUdstep_I*(gr_I - gr_tgt_I)) + (r_II*r_II*dUdstep_II*(gr_II - gr_tgt_II)))*gromacs_settings.delta_r;
+						*(grad_U_step + i) = *(grad_U_step + i) + 0.5*((r_weight_I*dUdstep_I*(gr_I - gr_tgt_I)) + (r_weight_II*dUdstep_II*(gr_II - gr_tgt_II)))*gromacs_settings.delta_r;
 					}
 
 					//calculate the gr_convergence (only once)
 					if (i == 0)
 					{
-						gr_convergence = gr_convergence + 0.5*((r_I*r_I*(gr_I - gr_tgt_I)*(gr_I - gr_tgt_I)) + (r_II*r_II*(gr_II - gr_tgt_II)*(gr_II - gr_tgt_II)))*gromacs_settings.delta_r;
+						gr_convergence = gr_convergence + 0.5*((r_weight_I*(gr_I - gr_tgt_I)*(gr_I - gr_tgt_I)) + (r_weight_II*(gr_II - gr_tgt_II)*(gr_II - gr_tgt_II)))*gromacs_settings.delta_r;
 					}
 				}
 			}
@@ -151,14 +157,31 @@ array_pair_and_num_elements potential_data::optimize_splined_potential(int last_
 		*(gr_convergence_pointer) = gr_convergence;
 
 		//calculate unscaled gradient and scale the gradient back by input value
+		//grad_magnitude = 0.0;
+		//for (i = 0; i < num_parameters; i++)
+		//{
+		//	grad_magnitude = grad_magnitude + (*(grad_U_step + i))*(*(grad_U_step + i)); //add square for this parameter
+		//	*(grad_U_step + i) = gromacs_settings.gradient_scale*(*(grad_U_step + i)); //scale this parameters gradient
+		//}
+		//grad_magnitude = sqrt(grad_magnitude); //get the square root of the total gradient
+		//*unscaled_gradient_pointer = grad_magnitude;
+
+
+
+		//calculate unscaled gradient and only include what contribution will not violate a constraint
+		//the component is not removed entirely as a more holistic, continuous measure is better
 		grad_magnitude = 0.0;
 		for (i = 0; i < num_parameters; i++)
 		{
-			grad_magnitude = grad_magnitude + (*(grad_U_step + i))*(*(grad_U_step + i)); //add square for this parameter
+			grad_U_step_adjusted = amount_before_monotonicity_constraint(*(U_step + i), *(grad_U_step + i)); //dialed back portion of gradient
+			grad_magnitude = grad_magnitude + grad_U_step_adjusted*grad_U_step_adjusted; //add square for this parameter
 			*(grad_U_step + i) = gromacs_settings.gradient_scale*(*(grad_U_step + i)); //scale this parameters gradient
 		}
 		grad_magnitude = sqrt(grad_magnitude); //get the square root of the total gradient
 		*unscaled_gradient_pointer = grad_magnitude;
+
+
+
 
 		//MOMENTUM DISABLED FOR THIS POTENTIAL
 		//TO BE UPDATED AFTER TESTING
@@ -177,6 +200,7 @@ array_pair_and_num_elements potential_data::optimize_splined_potential(int last_
 		}
 		format_data(/*output*/ potential_parameters,
 			/*input*/num_parameters, R, U_step, State);
+
 	}
 
 	
@@ -301,4 +325,12 @@ double monotonicity_constraint(double U_step_new)
 		return 0.0;
 	else
 		return U_step_new;
+}
+
+double amount_before_monotonicity_constraint(double U_step, double grad_U_step)
+{
+	if (U_step + grad_U_step <= 0.0)
+		return -U_step;
+	else
+		return grad_U_step;
 }

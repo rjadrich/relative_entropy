@@ -18,6 +18,8 @@ public:
 	int rlist; //line number for rlist
 	int rcoulomb; //line number for rcoulomb
 	int rvdw; //line number for rvdw
+	int dimensions; //line number for selecting if 1D, 2D, or 3D
+	int init_conf; //-1 for previous initial and 1 for previous output
 };
 
 class array_pair_and_num_elements

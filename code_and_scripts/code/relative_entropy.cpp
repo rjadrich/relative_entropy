@@ -356,7 +356,9 @@ void post_process_last_step(int last_step)
 		!(gromacs_settings_filestream >> gromacs_settings.buffer_size) ||
 		!(gromacs_settings_filestream >> gromacs_settings.rlist) ||
 		!(gromacs_settings_filestream >> gromacs_settings.rcoulomb) ||
-		!(gromacs_settings_filestream >> gromacs_settings.rvdw))
+		!(gromacs_settings_filestream >> gromacs_settings.rvdw) ||
+		!(gromacs_settings_filestream >> gromacs_settings.dimensions) ||
+		!(gromacs_settings_filestream >> gromacs_settings.init_conf))
 	{
 		log_filestream << "local last step settings could not be extracted -> killing!" << endl;
 		log_filestream << "///////////////////END RE CODE/////////////////////" << endl << endl;
@@ -591,7 +593,7 @@ void copy_gromacs_files(string last_step_directory, string next_step_directory)
 	//new starting state configuration, parameters (plus table file) and grompp file with cutoff adjustment
 	log_filestream << "copying last step simulation files to new step directory" << endl;
 	//copy_file(last_step_directory + "/conf_out.gro", next_step_directory + "/conf.gro");
-	copy_file(last_step_directory + "/conf_out.gro", next_step_directory + "/conf.gro");
+	copy_file(last_step_directory + "/conf.gro", next_step_directory + "/conf.gro");
 	copy_file(last_step_directory + "/parameters_out.txt", next_step_directory + "/parameters.txt");
 	copy_file(last_step_directory + "/d_parameters_out.txt", next_step_directory + "/d_parameters.txt");
 	copy_file(last_step_directory + "/table_out.xvg", next_step_directory + "/table.xvg");
@@ -866,7 +868,7 @@ void create_new_grompp_files_script(int last_step)
 	string file_address = "./step_" + convert_int_to_string(last_step) + "/grompp_files_out.sh"; //contains string with new file directory
 	ofstream grompp_files_script_filestream(file_address.c_str(), ios::out | ios::trunc); //for writing commands to be run by the grompp script
 
-	grompp_files_script_filestream << "gmx grompp -f grompp.mdp -po md_out.mdp -c conf.gro -n index.ndx -p topol.top -o topol.tpr" << endl;
+	grompp_files_script_filestream << "grompp -f grompp.mdp -po md_out.mdp -c conf.gro -n index.ndx -p topol.top -o topol.tpr" << endl;
 	grompp_files_script_filestream << endl;
 	grompp_files_script_filestream << "grompp_exit=$?" << endl;
 	grompp_files_script_filestream << endl;
@@ -880,7 +882,7 @@ void create_new_mdrun_gromacs_script(int last_step)
 	string file_address = "./step_" + convert_int_to_string(last_step) + "/mdrun_gromacs_out.sh"; //contains string with new file directory
 	ofstream mdrun_gromacs_script_filestream(file_address.c_str(), ios::out | ios::trunc); //for writing commands to be run by the mdrun script
 
-	mdrun_gromacs_script_filestream << "gmx mdrun -s topol.tpr -c conf_out.gro -o traj.trr -x traj.xtc -pin on" << endl;
+	mdrun_gromacs_script_filestream << "mdrun -s topol.tpr -c conf_out.gro -o traj.trr -x traj.xtc -pin on" << endl;
 	mdrun_gromacs_script_filestream << endl;
 	mdrun_gromacs_script_filestream << "mdrun_exit=$?" << endl;
 	mdrun_gromacs_script_filestream << endl;
@@ -914,12 +916,25 @@ void create_new_rdf_gromacs_script(int last_step, gromacs_settings_class gromacs
 	}
 
 	//OTHER VARIABLES FOR RDF CALCULATION
-	rdf_gromacs_script_filestream << 
-		" -b " << gromacs_settings.equil_time <<
-		" -e " << gromacs_settings.final_time <<
-		" --" <<
-		" -bin " << gromacs_settings.delta_r <<
-		" << 'EOF' " << endl;
+	if (gromacs_settings.dimensions == 3)
+	{
+		rdf_gromacs_script_filestream <<
+			" -b " << gromacs_settings.equil_time <<
+			" -e " << gromacs_settings.final_time <<
+			" --" <<
+			" -bin " << gromacs_settings.delta_r <<
+			" << 'EOF' " << endl;
+	}
+	else if (gromacs_settings.dimensions == 2)
+	{
+		rdf_gromacs_script_filestream <<
+			" -b " << gromacs_settings.equil_time <<
+			" -e " << gromacs_settings.final_time <<
+			" --" <<
+			" -bin " << gromacs_settings.delta_r <<
+			" -xy " <<
+			" << 'EOF' " << endl;
+	}
 
 	//COMMANDS TO PIPE IN SOME NEEDED DETAILS FOR THE RDF CALC
 	rdf_gromacs_script_filestream << "2" << endl;
