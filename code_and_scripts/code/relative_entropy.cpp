@@ -31,10 +31,10 @@ int find_last_step(int max_steps); //finds the last complete step by finding the
 void archive_incomplete_steps(int last_step, int max_steps); //archives any steps that may occur after the last complete step (i.e., crash and restart)
 void create_next_step(int last_step); //post processes last step if no "post_process_done.txt" and then create the next step 
 void copy_file(string initialFilePath, string outputFilePath); //generic copy file code for filesystem
-bool last_step_post_process_status(int last_step); //code that actually checks for "post_process_done.txt" in last step
-void post_process_last_step(int last_step); //actually post processes the data from the last step if not already done 
+bool last_step_post_process_status(int last_step, gromacs_settings_class *gromacs_settings); //code that actually checks for "post_process_done.txt" in last step
+void post_process_last_step(int last_step, gromacs_settings_class gromacs_settings); //actually post processes the data from the last step if not already done 
 void update_auxillary_script(int last_step); //updates some commands to be executed by primary script after creating new step (i.e., grdf)
-void copy_gromacs_files(string last_step_directory, string next_step_directory); //copies over gromacs required files to new step directory
+void copy_gromacs_files(string last_step_directory, string next_step_directory, gromacs_settings_class gromacs_settings); //copies over gromacs required files to new step directory
 array_pair_and_num_elements fetch_gr_data(string last_step_directory, gromacs_settings_class gromacs_settings); //extracts the RDF data and only reads in as much as is in the new gr file
 void create_table_file(int last_step, string last_step_directory, array_pair_and_num_elements table_data, gromacs_settings_class gromacs_settings); //generates post processed table file
 void create_new_grad_file(int last_step, double unscaled_gradient, double gr_convergence); //accumulates the unscaled gradient values from all iterations
@@ -227,6 +227,7 @@ void create_next_step(int last_step)
 	int next_step=last_step+1;
 	string last_step_directory;
 	string next_step_directory;
+	gromacs_settings_class gromacs_settings;
 
 	//CREATE THE NEXT STEP FOLDER
 	next_step_directory = "./step_" + convert_int_to_string(next_step);
@@ -235,10 +236,10 @@ void create_next_step(int last_step)
 	//GENERATE LAST STEP DIRECTORY STRING FOR USAGE IN COPYING FILES
 	last_step_directory = "./step_" + convert_int_to_string(last_step);
 
-	//CHECK TO SEE IF THE LAST STEP WAS POST PROCESSED YET OR NOT (I.E. AFTER A KILL OR CRASH)
-	if (last_step_post_process_status(last_step) == false)
+	//CHECK TO SEE IF THE LAST STEP WAS POST PROCESSED YET OR NOT (E.G. AFTER A KILL OR CRASH) AND READ IN SETTINGS (NEED THEM REGARDLESS)
+	if (last_step_post_process_status(last_step, &gromacs_settings) == false)
 	{
-		post_process_last_step(last_step);
+		post_process_last_step(last_step, gromacs_settings);
 		//THIS USES THE LOCAL FOLDER SETTINGS FOR CONSISTENCY
 		//NOTE: FOR THE ZEROTH STEP THIS DOES NO CALCULATION BUT IT DOES GENERATE
 		//(1) PARAMETERS_OUT (JUST AN EXACT COPY)
@@ -247,7 +248,7 @@ void create_next_step(int last_step)
 	}
 	
 	//COPY THE POST PROCESSED, UPDATED INFO FOR USE IN NEW STEP FOLDER SIMULATION
-	copy_gromacs_files(last_step_directory, next_step_directory);
+	copy_gromacs_files(last_step_directory, next_step_directory, gromacs_settings);
 
 	//COPY MAIN DIRECTORY SETTINGS FILE TO DEMARCATE WHAT WAS USED
 	//log_filestream << "copying current settings file to new step directory for reference" << endl;
@@ -278,16 +279,17 @@ void copy_file(string initialFilePath, string outputFilePath)  //COPY ANY FILES 
 	outputFile.close();
 }
 
-bool last_step_post_process_status(int last_step)
+bool last_step_post_process_status(int last_step, gromacs_settings_class *gromacs_settings)
 {
+	
+	log_filestream << "checking post process status of the last step" << endl;
+
+	//CHECK POST PROCESS STATUS
 	bool post_process_status; //returned true or false for a fully post processes data set
 	ifstream check_post_process_filestream; //filestream for checking of the post processing done file exists
 	string check_post_process_done_file; //string holding address to post processing done file for current check step iteration
-	
 	check_post_process_done_file = "./step_" + convert_int_to_string(last_step) + "/post_process_done.txt";
 	check_post_process_filestream.open(check_post_process_done_file.c_str());
-
-	log_filestream << "checking post process status of the last step" << endl;
 
 	if (check_post_process_filestream.fail() == true)
 	{
@@ -299,22 +301,49 @@ bool last_step_post_process_status(int last_step)
 		post_process_status = true;
 		log_filestream << "data from last step already post processed" << endl;
 	}
-
 	check_post_process_filestream.close();
+
+
+	//READ IN THE SETTINGS
+	ifstream gromacs_settings_filestream; //filestream to read in the gromacs specific settings
+	string last_step_directory = "./step_" + convert_int_to_string(last_step);
+	string setting_file_address = last_step_directory + "/settings.txt";
+	gromacs_settings_filestream.open(setting_file_address.c_str());
+
+	if (!(gromacs_settings_filestream >> gromacs_settings->delta_r) ||
+		!(gromacs_settings_filestream >> gromacs_settings->num_gr_calcs) ||
+		!(gromacs_settings_filestream >> gromacs_settings->equil_time) ||
+		!(gromacs_settings_filestream >> gromacs_settings->final_time) ||
+		!(gromacs_settings_filestream >> gromacs_settings->end_table) ||
+		!(gromacs_settings_filestream >> gromacs_settings->gradient_scale) ||
+		!(gromacs_settings_filestream >> gromacs_settings->momentum_scale) ||
+		!(gromacs_settings_filestream >> gromacs_settings->kB_T) ||
+		!(gromacs_settings_filestream >> gromacs_settings->md_cutoff_magnitude) ||
+		!(gromacs_settings_filestream >> gromacs_settings->buffer_size) ||
+		!(gromacs_settings_filestream >> gromacs_settings->rlist) ||
+		!(gromacs_settings_filestream >> gromacs_settings->rcoulomb) ||
+		!(gromacs_settings_filestream >> gromacs_settings->rvdw) ||
+		!(gromacs_settings_filestream >> gromacs_settings->dimensions) ||
+		!(gromacs_settings_filestream >> gromacs_settings->init_conf))
+	{
+		log_filestream << "local last step settings could not be extracted -> killing!" << endl;
+		log_filestream << "///////////////////END RE CODE/////////////////////" << endl << endl;
+		exit(EXIT_FAILURE);
+	}
+	gromacs_settings_filestream.close();
+
 
 	return post_process_status;
 }
 
-void post_process_last_step(int last_step)
+void post_process_last_step(int last_step, gromacs_settings_class gromacs_settings)
 {
 	//LAST STEP DIRECTORY NEEDED FOR EVERYTHING
 	string last_step_directory = "./step_" + convert_int_to_string(last_step);
-	string setting_file_address = last_step_directory + "/settings.txt";
 	string potential_parameters_file_address = last_step_directory + "/parameters.txt";
 	string d_potential_parameters_file_address = last_step_directory + "/d_parameters.txt";
 
 	//GROMACS SPECIFIC VARIABLES
-	gromacs_settings_class gromacs_settings; //will store the needed gromacs settings
 	ifstream gromacs_settings_filestream; //filestream to read in the gromacs specific settings
 
 	//POTENTIAL SPECIFIC VARIABLES
@@ -339,31 +368,8 @@ void post_process_last_step(int last_step)
 	double gr_convergence; //asesses the convergence of the optimization scheme but with gr
 
 	//OPEN OUR THREE FILESTREAMS
-	gromacs_settings_filestream.open(setting_file_address.c_str());
 	potential_parameters_filestream.open(potential_parameters_file_address.c_str());
 	d_potential_parameters_filestream.open(d_potential_parameters_file_address.c_str());
-
-	//READ IN SETTINGS
-	if (!(gromacs_settings_filestream >> gromacs_settings.delta_r) ||
-		!(gromacs_settings_filestream >> gromacs_settings.num_gr_calcs) ||
-		!(gromacs_settings_filestream >> gromacs_settings.equil_time) ||
-		!(gromacs_settings_filestream >> gromacs_settings.final_time) ||
-		!(gromacs_settings_filestream >> gromacs_settings.end_table) ||
-		!(gromacs_settings_filestream >> gromacs_settings.gradient_scale) ||
-		!(gromacs_settings_filestream >> gromacs_settings.momentum_scale) ||
-		!(gromacs_settings_filestream >> gromacs_settings.kB_T) ||
-		!(gromacs_settings_filestream >> gromacs_settings.md_cutoff_magnitude) ||
-		!(gromacs_settings_filestream >> gromacs_settings.buffer_size) ||
-		!(gromacs_settings_filestream >> gromacs_settings.rlist) ||
-		!(gromacs_settings_filestream >> gromacs_settings.rcoulomb) ||
-		!(gromacs_settings_filestream >> gromacs_settings.rvdw) ||
-		!(gromacs_settings_filestream >> gromacs_settings.dimensions) ||
-		!(gromacs_settings_filestream >> gromacs_settings.init_conf))
-	{
-		log_filestream << "local last step settings could not be extracted -> killing!" << endl;
-		log_filestream << "///////////////////END RE CODE/////////////////////" << endl << endl;
-		exit(EXIT_FAILURE);
-	}
 
 	//READ IN THE NEW AND TARGET RDFS IF NOT THE LAST STEP
 	if (last_step != 0)
@@ -427,8 +433,8 @@ void post_process_last_step(int last_step)
 	create_new_gromacs_scripts(last_step, gromacs_settings);
 
 	//CLOSE FILESTREAMS
-	gromacs_settings_filestream.close();
 	potential_parameters_filestream.close();
+	d_potential_parameters_filestream.close();
 
 	//CREATE NEW DONE_POST_PROCESS.TXT
 	create_post_process_done_file(last_step);
@@ -573,7 +579,7 @@ void update_auxillary_script(int last_step)
 	auxillary_script_filestream.close();
 }
 
-void copy_gromacs_files(string last_step_directory, string next_step_directory)
+void copy_gromacs_files(string last_step_directory, string next_step_directory, gromacs_settings_class gromacs_settings)
 {
 	/*//COPY THE POST PROCESSED, UPDATED INFO FOR USE IN NEW STEP FOLDER
 	//new starting state configuration, parameters (plus table file) and grompp file with cutoff adjustment
@@ -593,7 +599,10 @@ void copy_gromacs_files(string last_step_directory, string next_step_directory)
 	//new starting state configuration, parameters (plus table file) and grompp file with cutoff adjustment
 	log_filestream << "copying last step simulation files to new step directory" << endl;
 	//copy_file(last_step_directory + "/conf_out.gro", next_step_directory + "/conf.gro");
-	copy_file(last_step_directory + "/conf.gro", next_step_directory + "/conf.gro");
+	if (gromacs_settings.init_conf == -1)
+		copy_file(last_step_directory + "/conf.gro", next_step_directory + "/conf.gro");
+	else if (gromacs_settings.init_conf == 1)
+		copy_file(last_step_directory + "/conf_out.gro", next_step_directory + "/conf.gro");
 	copy_file(last_step_directory + "/parameters_out.txt", next_step_directory + "/parameters.txt");
 	copy_file(last_step_directory + "/d_parameters_out.txt", next_step_directory + "/d_parameters.txt");
 	copy_file(last_step_directory + "/table_out.xvg", next_step_directory + "/table.xvg");

@@ -71,21 +71,10 @@ array_pair_and_num_elements potential_data::optimize_splined_potential(int last_
 
 	//CONSTRAINED AMPLITUDE
 
-	//DELETE
-	//ofstream dudA_stream("./dudA.csv", ios::out | ios::trunc); //for writing commands to be run by the global script (for gromacs just g rdf)
-	//ofstream dudn_stream("./dudn.csv", ios::out | ios::trunc); //for writing commands to be run by the global script (for gromacs just g rdf)
-	//ofstream dudL1_stream("./dudL1.csv", ios::out | ios::trunc); //for writing commands to be run by the global script (for gromacs just g rdf)
-	//ofstream dudk1_stream("./dudk1.csv", ios::out | ios::trunc); //for writing commands to be run by the global script (for gromacs just g rdf)
-	//ofstream dudd1_stream("./dudd1.csv", ios::out | ios::trunc); //for writing commands to be run by the global script (for gromacs just g rdf)
-	//ofstream dudL2_stream("./dudL2.csv", ios::out | ios::trunc); //for writing commands to be run by the global script (for gromacs just g rdf)
-	//ofstream dudk2_stream("./dudk2.csv", ios::out | ios::trunc); //for writing commands to be run by the global script (for gromacs just g rdf)
-	//ofstream dudd2_stream("./dudd2.csv", ios::out | ios::trunc); //for writing commands to be run by the global script (for gromacs just g rdf)
-
+	
 	/////////////////////////////////////////////////////////////////////////////////////////////
 	///////////////////////////////////UPDATING PARAMETERS///////////////////////////////////////
 	/////////////////////////////////////////////////////////////////////////////////////////////
-
-	
 
 	//EXTRACT (FORMAT) THE DATA FOR USE IN THE AKIMA SPLINING
 	extract_data(/*input*/ potential_parameters, num_parameters, /*output*/ R, U_step, State);
@@ -260,20 +249,6 @@ array_pair_and_num_elements potential_data::optimize_splined_potential(int last_
 	/////////////////////////////////////////////////////////////////////////////////////////////
 	///////////////////////////////////////FINAL STUFF///////////////////////////////////////////
 	/////////////////////////////////////////////////////////////////////////////////////////////
-
-
-
-	///////////////////////////////////////////////////
-	//dudA_stream.close();
-	//dudn_stream.close();
-	//dudL1_stream.close();
-	//dudk1_stream.close();
-	//dudd1_stream.close();
-	//dudL2_stream.close();
-	//dudk2_stream.close();
-	//dudd2_stream.close();
-
-	////////////////////////////////////////////////////
 
 
 
