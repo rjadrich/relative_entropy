@@ -74,14 +74,14 @@ ns_type                  = grid
 ; or full (infinite systems only)
 pbc                      = xy
 ; nblist cut-off        
-rlist                    = 4.565
+rlist                    = 4.09
 domain-decomposition     = no
 
 ; OPTIONS FOR ELECTROSTATICS AND VDW
 ; Method for doing electrostatics
 coulombtype              = Cut-off 
 rcoulomb-switch          = 0
-rcoulomb                 = 4.565
+rcoulomb                 = 4.09
 ; Relative dielectric constant for the medium and the reaction field
 epsilon_r                = 1
 epsilon_rf               = 1
@@ -89,7 +89,7 @@ epsilon_rf               = 1
 vdwtype                  = user
 ; cut-off lengths       
 rvdw-switch              = 0
-rvdw                     = 4.565
+rvdw                     = 4.09
 ; Apply long range dispersion corrections for Energy and Pressure
 DispCorr                 = no 
 ; Extension of the potential lookup tables beyond the cut-off

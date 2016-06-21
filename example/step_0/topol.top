@@ -13,7 +13,7 @@
 ; full atom descriptions are available in ffoplsaa.atp
 ; name  bond_type    mass    charge   ptype   sigma    epsilon
 ;                    (u)     (e)              (nm)     (kJ/mol)
-    A      A           30.00    0        A       1     1
+    A      A           1.00    0        A       1     1
 
 [ molecule_type ]
     A	   1
@@ -21,6 +21,11 @@
 [ atoms ]
 ;   nr   type  resnr residue  atom   cgnr     charge       mass
     1	   A      1     A       A     1        0
+
+[ position_restraints ]
+; ai  func   fcx    fcy    fcz
+;   1    1    0.1    0.1    0.1
+
 
 ;;;
 ;;;------------------------------------------------------------
@@ -33,5 +38,5 @@ WCA
 
 [ molecules ]
 ; Compound        #mols
-A		  8000
+A		  1080
 

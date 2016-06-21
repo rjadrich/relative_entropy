@@ -182,11 +182,23 @@ array_pair_and_num_elements potential_data::optimize_splined_potential(int last_
 
 		//UPDATE THE PARAMETERS AND FORMAT FOR DATA FILE BY STORING IN POTENTIAL_PARAMETERS
 		//note: the new spline calculation happens outside this region
-		for (i = 0; i < num_parameters; i++)
+		int constraint_status = (int)(*(potential_parameters + (num_parameters_rows - 1)) + 0.5);
+
+		if (constraint_status == 1) //constraint on
 		{
-			//*(U_step + i) = *(U_step + i) + *(grad_U_step + i);
-			*(U_step + i) = monotonicity_constraint(*(U_step + i) + *(grad_U_step + i));
+			for (i = 0; i < num_parameters; i++) 
+			{
+				*(U_step + i) = monotonicity_constraint(*(U_step + i) + *(grad_U_step + i));
+			}
 		}
+		else //constraint off
+		{
+			for (i = 0; i < num_parameters; i++) 
+			{
+				*(U_step + i) = *(U_step + i) + *(grad_U_step + i);
+			}
+		}
+
 		format_data(/*output*/ potential_parameters,
 			/*input*/num_parameters, R, U_step, State);
 

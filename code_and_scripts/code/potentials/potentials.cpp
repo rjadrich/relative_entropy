@@ -64,8 +64,8 @@ bool potential_data::set_potential(int potential_type_input)
 		}
 		spline_filestream.close();
 
-		num_parameters_rows = 3 * (num_parameters - 1) + 1;
-		num_d_parameters_rows = 3 * (num_d_parameters - 1) + 1;
+		num_parameters_rows = 3 * (num_parameters - 1) + 2;
+		num_d_parameters_rows = 3 * (num_d_parameters - 1) + 2;
 	}
 	else
 	{
