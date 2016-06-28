@@ -13,16 +13,14 @@
 using namespace std;
 
 //DEFINITION OF AUXILLARY DATA EXTRACTION AND OUTPUT FUNCTIONS
-void extract_data(/*input*/ double *potential_parameters, int num_parameters,
-	/*output*/ double *R, double *U_step, int *State);
-void format_data(/*output*/ double *potential_parameters,
-	/*input*/int num_parameters, double *R, double *U_step, int *State);
-double monotonicity_constraint(double U_step_new);
-double amount_before_monotonicity_constraint(double U_step, double grad_U_step);
+void extract_data_standard(/*input*/ double *potential_parameters, int num_parameters,
+	/*output*/ double *R, double *U, int *State);
+void format_data_standard(/*output*/ double *potential_parameters,
+	/*input*/int num_parameters, double *R, double *U, int *State);
 
 
 //ACTUAL POTENTIAL OPTIMIZER FUNCTION
-array_pair_and_num_elements potential_data::optimize_splined_potential(int last_step, array_pair_and_num_elements gr_data,
+array_pair_and_num_elements potential_data::optimize_splined_potential_standard(int last_step, array_pair_and_num_elements gr_data,
 	double *potential_parameters, double *d_potential_parameters, gromacs_settings_class gromacs_settings,
 	double *md_cutoff_pointer, double *unscaled_gradient_pointer, double *gr_convergence_pointer)
 {
@@ -30,7 +28,7 @@ array_pair_and_num_elements potential_data::optimize_splined_potential(int last_
 	//for this potential we just work with the potential_parameters directly
 
 	//PARAMETERS FOR MAKING SPLINE
-	double *R, *U_step, *grad_U_step;
+	double *R, *U, *grad_U;
 	int *State;
 	Maths::Interpolation::Akima Spline(num_parameters); //potential spline
 	Maths::Interpolation::Akima Spline_L(num_parameters); //spline for derivative calc (left side)
@@ -38,12 +36,12 @@ array_pair_and_num_elements potential_data::optimize_splined_potential(int last_
 
 	//ALLOCATE MEMORY FOR X, Y AND STATE (FIXED OR NOT FIXED)
 	R = (double*)malloc(sizeof(double) * num_parameters); 
-	U_step = (double*)malloc(sizeof(double) * num_parameters); //for mental simplicity the last element exists but is just ignored
-	grad_U_step = (double*)malloc(sizeof(double) * num_parameters); //stores the various gradients
+	U = (double*)malloc(sizeof(double) * num_parameters); //for mental simplicity the last element exists but is just ignored
+	grad_U = (double*)malloc(sizeof(double) * num_parameters); //stores the various gradients
 	State = (int*)malloc(sizeof(int) * num_parameters); //for mental simplicity the last element exists but is just ignored
 
 	//SOME RELEVANT OPTIMIZATION PARAMETERS
-	double delta_U_step, dUdstep_I, dUdstep_II;
+	double delta_U, dUdu_I, dUdu_II;
 
 	//GENERIC DISTANCE VARIABLE
 	double r;
@@ -57,7 +55,6 @@ array_pair_and_num_elements potential_data::optimize_splined_potential(int last_
 	int num_lines_gr; //again, better than using gr_data directly
 	//double grad_rcut;
 		/////////////////////////////////////////////////////////////////
-	double grad_U_step_adjusted;
 	double grad_magnitude;
 	double r_weight_I, r_weight_II;
 	double r_I, r_II;
@@ -73,7 +70,7 @@ array_pair_and_num_elements potential_data::optimize_splined_potential(int last_
 	/////////////////////////////////////////////////////////////////////////////////////////////
 
 	//EXTRACT (FORMAT) THE DATA FOR USE IN THE AKIMA SPLINING
-	extract_data(/*input*/ potential_parameters, num_parameters, /*output*/ R, U_step, State);
+	extract_data_standard(/*input*/ potential_parameters, num_parameters, /*output*/ R, U, State);
 
 	//EXTRACT MEMORY ADDRESS FROM GR_DATA
 	num_lines_gr = gr_data.num_elements;
@@ -84,24 +81,24 @@ array_pair_and_num_elements potential_data::optimize_splined_potential(int last_
 		//INITIALIZE THE GRADIENT ARRAY
 		for (i = 0; i < num_parameters; i++)
 		{
-			*(grad_U_step + i) = 0.0;
+			*(grad_U + i) = 0.0;
 		}
 
 		//INTEGRAL FOR FINDING THE GRADIENT TOWARDS LARGER PROBABILITY
 		//LOOP OVER THE PARAMETERS TO CALCULATE THE DERIVATIVES AND INTEGRATE
 		//loop for selecting which parameter to perturb
 		gr_convergence = 0.0; 
-		delta_U_step = 0.01; //just fixed for now to test
+		delta_U = 0.01; //just fixed for now to test
 		for (i = 0; i < num_parameters; i++)
 		{
 			if (*(State + i) == 1)
 			{
 				//make the splines for derivative calculations
-				*(U_step + i) = *(U_step + i) - delta_U_step; //move to the left by one unit
-				Spline_L.Make_Akima_Wrapper(R, U_step);
-				*(U_step + i) = *(U_step + i) + 2.0 * delta_U_step; //to the right by one unit (requires two steps)
-				Spline_R.Make_Akima_Wrapper(R, U_step);
-				*(U_step + i) = *(U_step + i) - delta_U_step; //move back to original location
+				*(U + i) = *(U + i) - delta_U; //move to the left by one unit
+				Spline_L.Make_Akima(R, U);
+				*(U + i) = *(U + i) + 2.0 * delta_U; //to the right by one unit (requires two steps)
+				Spline_R.Make_Akima(R, U);
+				*(U + i) = *(U + i) - delta_U; //move back to original location
 
 				//now compute the derivative and update
 				for (k = 0; k < num_lines_gr - 1; k++)
@@ -120,13 +117,13 @@ array_pair_and_num_elements potential_data::optimize_splined_potential(int last_
 					gr_tgt_II = *(gr_data.array_2 + k + 1);
 
 					//calculate the derivatives
-					dUdstep_I = (Spline_R.getValue(r_I) - Spline_L.getValue(r_I)) / delta_U_step;
-					dUdstep_II = (Spline_R.getValue(r_II) - Spline_L.getValue(r_II)) / delta_U_step;
+					dUdu_I = (Spline_R.getValue(r_I) - Spline_L.getValue(r_I)) / delta_U;
+					dUdu_II = (Spline_R.getValue(r_II) - Spline_L.getValue(r_II)) / delta_U;
 
 					//actually do the damn integral
-					if (isfinite(dUdstep_I) && isfinite(dUdstep_II))
+					if (isfinite(dUdu_I) && isfinite(dUdu_II))
 					{
-						*(grad_U_step + i) = *(grad_U_step + i) + 0.5*((r_weight_I*dUdstep_I*(gr_I - gr_tgt_I)) + (r_weight_II*dUdstep_II*(gr_II - gr_tgt_II)))*gromacs_settings.delta_r;
+						*(grad_U + i) = *(grad_U + i) + 0.5*((r_weight_I*dUdu_I*(gr_I - gr_tgt_I)) + (r_weight_II*dUdu_II*(gr_II - gr_tgt_II)))*gromacs_settings.delta_r;
 					}
 
 					//calculate the gr_convergence (only once)
@@ -158,9 +155,8 @@ array_pair_and_num_elements potential_data::optimize_splined_potential(int last_
 		grad_magnitude = 0.0;
 		for (i = 0; i < num_parameters; i++)
 		{
-			grad_U_step_adjusted = amount_before_monotonicity_constraint(*(U_step + i), *(grad_U_step + i)); //dialed back portion of gradient
-			grad_magnitude = grad_magnitude + grad_U_step_adjusted*grad_U_step_adjusted; //add square for this parameter
-			*(grad_U_step + i) = gromacs_settings.gradient_scale*(*(grad_U_step + i)); //scale this parameters gradient
+			grad_magnitude = grad_magnitude + (*(grad_U + i))*(*(grad_U + i)); //add square for this parameter
+			*(grad_U + i) = gromacs_settings.gradient_scale*(*(grad_U + i)); //scale this parameters gradient
 		}
 		grad_magnitude = sqrt(grad_magnitude); //get the square root of the total gradient
 		*unscaled_gradient_pointer = grad_magnitude;
@@ -178,32 +174,21 @@ array_pair_and_num_elements potential_data::optimize_splined_potential(int last_
 
 		//UPDATE THE PARAMETERS AND FORMAT FOR DATA FILE BY STORING IN POTENTIAL_PARAMETERS
 		//note: the new spline calculation happens outside this region
-		int constraint_status = (int)(*(potential_parameters + (num_parameters_rows - 1)) + 0.5);
 
-		if (constraint_status == 1) //constraint on
+		for (i = 0; i < num_parameters; i++)
 		{
-			for (i = 0; i < num_parameters; i++) 
-			{
-				*(U_step + i) = monotonicity_constraint(*(U_step + i) + *(grad_U_step + i));
-			}
-		}
-		else //constraint off
-		{
-			for (i = 0; i < num_parameters; i++) 
-			{
-				*(U_step + i) = *(U_step + i) + *(grad_U_step + i);
-			}
+			*(U + i) = *(U + i) + *(grad_U + i);
 		}
 
-		format_data(/*output*/ potential_parameters,
-			/*input*/num_parameters, R, U_step, State);
+		format_data_standard(/*output*/ potential_parameters,
+			/*input*/num_parameters, R, U, State);
 
 	}
 
 	
 
 	//MAKE THE SPLINE USING PARAMETERS THAT MAY OR MAY NOT HAVE BEEN UPDATED (IF STEP 0 NO)
-	Spline.Make_Akima_Wrapper(R, U_step);
+	Spline.Make_Akima(R, U);
 
 	
 
@@ -269,51 +254,35 @@ array_pair_and_num_elements potential_data::optimize_splined_potential(int last_
 }
 
 //ACCEPTS ADDRESS OF POTENTIAL PARAMETERS AND EXTRACT THE INDIVIDUAL COMPONENTS
-void extract_data(/*input*/ double *potential_parameters, int num_parameters, 
-				/*output*/ double *R, double *U_step, int *State)
+void extract_data_standard(/*input*/ double *potential_parameters, int num_parameters, 
+				/*output*/ double *R, double *U, int *State)
 {
 	//load in the points until the last r-space entry according the the input format
 	for (int i = 0; i < num_parameters - 1; i++)
 	{
 		*(R + i) = *(potential_parameters + 0 + 3 * i);
-		*(U_step + i) = *(potential_parameters + 1 + 3 * i);
+		*(U + i) = *(potential_parameters + 1 + 3 * i);
 		*(State + i) = *(potential_parameters + 2 + 3 * i);
 	}
 
 	//load in the last r-space entry manually since technically this is not associated with a step parameter
 	*(R + num_parameters - 1) = *(potential_parameters + 0 + 3 * (num_parameters - 1));
-	*(U_step + num_parameters - 1) = 0.0;
+	*(U + num_parameters - 1) = 0.0;
 	*(State + num_parameters - 1) = 0;
 }
 
 //THIS DOES THE INVERSE OF THE ABOVE FUNCTION AND PREPARES THE NEWLY UPDATE PARAMETERS FOR FILE WRITING
-void format_data(/*output*/ double *potential_parameters,
-	/*input*/int num_parameters, double *R, double *U_step, int *State)
+void format_data_standard(/*output*/ double *potential_parameters,
+	/*input*/int num_parameters, double *R, double *U, int *State)
 {
 	//set the first points until the last r-space entry according the the input format
 	for (int i = 0; i < num_parameters - 1; i++)
 	{
 		*(potential_parameters + 0 + 3 * i) = *(R + i);
-		*(potential_parameters + 1 + 3 * i) = *(U_step + i);
+		*(potential_parameters + 1 + 3 * i) = *(U + i);
 		*(potential_parameters + 2 + 3 * i) = *(State + i);
 	}
 
 	//set the last r-space entry manually since technically this is not associated with a step parameter
 	*(potential_parameters + 0 + 3 * (num_parameters - 1)) = *(R + num_parameters - 1);
-}
-
-double monotonicity_constraint(double U_step_new)
-{
-	if (U_step_new < 0.0)
-		return 0.0;
-	else
-		return U_step_new;
-}
-
-double amount_before_monotonicity_constraint(double U_step, double grad_U_step)
-{
-	if (U_step + grad_U_step <= 0.0)
-		return -U_step;
-	else
-		return grad_U_step;
 }

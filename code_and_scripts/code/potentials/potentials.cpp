@@ -38,7 +38,7 @@ bool potential_data::set_potential(int potential_type_input)
 		num_d_parameters = 9; num_d_parameters_rows = num_d_parameters;
 		return true;
 	}
-	else if (potential_type == -1) //akima splined potential (for this I read in choice from a file)
+	else if (potential_type == -1 || potential_type == -2) //akima splined potential (for this I read in choice from a file)
 	{
 		ifstream spline_filestream;
 		spline_filestream.open("num_spline_parameters.txt");
@@ -66,6 +66,8 @@ bool potential_data::set_potential(int potential_type_input)
 
 		num_parameters_rows = 3 * (num_parameters - 1) + 2;
 		num_d_parameters_rows = 3 * (num_d_parameters - 1) + 2;
+
+		return true;
 	}
 	else
 	{
@@ -73,6 +75,7 @@ bool potential_data::set_potential(int potential_type_input)
 	}
 
 	//NEW POTENTIALS...
+	return false;
 
 }
 
@@ -121,10 +124,12 @@ array_pair_and_num_elements potential_data::optimize_potential(int last_step, ar
 		return optimize_splined_potential(last_step, gr_data,
 			potential_parameters, d_potential_parameters, gromacs_settings,
 			md_cutoff_pointer, unscaled_gradient_pointer, gr_convergence_pointer);
-
-		//log_filestream << "akima splined potential not coded yet -> killing!" << endl;
-		//log_filestream << "///////////////////END RE CODE/////////////////////" << endl << endl;
-		//exit(EXIT_FAILURE);
+	}
+	else if (potential_type == -2) //akima splined potential
+	{
+		return optimize_splined_potential_standard(last_step, gr_data,
+			potential_parameters, d_potential_parameters, gromacs_settings,
+			md_cutoff_pointer, unscaled_gradient_pointer, gr_convergence_pointer);
 	}
 
 	//NEW POTENTIALS...

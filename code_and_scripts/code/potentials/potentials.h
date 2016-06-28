@@ -46,8 +46,13 @@ private:
 		double *potential_parameters, double *d_potential_parameters, gromacs_settings_class gromacs_settings,
 		double *md_cutoff_pointer, double *unscaled_gradient_pointer, double *gr_convergence_pointer);
 
-	//from crystal_potential.cpp
+	//from splined_potential.cpp
 	array_pair_and_num_elements optimize_splined_potential(int last_step, array_pair_and_num_elements gr_data,
+		double *potential_parameters, double *d_potential_parameters, gromacs_settings_class gromacs_settings,
+		double *md_cutoff_pointer, double *unscaled_gradient_pointer, double *gr_convergence_pointer);
+
+	//from splined_potential_standard.cpp
+	array_pair_and_num_elements optimize_splined_potential_standard(int last_step, array_pair_and_num_elements gr_data,
 		double *potential_parameters, double *d_potential_parameters, gromacs_settings_class gromacs_settings,
 		double *md_cutoff_pointer, double *unscaled_gradient_pointer, double *gr_convergence_pointer);
 
