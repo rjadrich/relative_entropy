@@ -946,8 +946,8 @@ void create_new_rdf_gromacs_script(int last_step, gromacs_settings_class gromacs
 	}
 
 	//COMMANDS TO PIPE IN SOME NEEDED DETAILS FOR THE RDF CALC
-	rdf_gromacs_script_filestream << "2" << endl;
-	rdf_gromacs_script_filestream << "2" << endl;
+	rdf_gromacs_script_filestream << "0" << endl;
+	rdf_gromacs_script_filestream << "0" << endl;
 	rdf_gromacs_script_filestream << "'EOF'" << endl;
 	rdf_gromacs_script_filestream << endl;
 	rdf_gromacs_script_filestream << "rdf_exit=$?" << endl;

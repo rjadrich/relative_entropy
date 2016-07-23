@@ -1,1 +1,1 @@
-icc -o relative_entropy ./relative_entropy.cpp ./potentials/potentials.cpp ./potentials/ideal_cluster_potential.cpp ./potentials/ramp_salr_cluster_potential.cpp ./potentials/crystal_potential.cpp ./potentials/splined_potential.cpp
+icc -o relative_entropy ./relative_entropy.cpp ./potentials/potentials.cpp ./potentials/ideal_cluster_potential.cpp ./potentials/ramp_salr_cluster_potential.cpp ./potentials/crystal_potential.cpp ./potentials/splined_potential.cpp ./potentials/splined_potential_standard.cpp
